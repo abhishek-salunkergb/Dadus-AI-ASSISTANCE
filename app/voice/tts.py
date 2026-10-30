@@ -189,7 +189,7 @@ def get_tts_provider(provider_name: Optional[str] = None) -> BaseTTS:
     if provider == "sapi":
         return WindowsSapiTTS(rate=settings.TTS_VOICE_RATE, volume=settings.TTS_VOICE_VOLUME)
     elif provider == "openai":
-        return OpenAITTS()
+        return OpenAITTS(voice=settings.TTS_VOICE)
     elif provider == "mock":
         return MockTTS()
     else:

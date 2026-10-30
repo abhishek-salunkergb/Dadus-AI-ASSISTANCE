@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # Voice / TTS Settings
     TTS_PROVIDER: str = Field(default="sapi", description="TTS Provider: sapi (Windows native), pyttsx3, openai, mock")
+    TTS_VOICE: str = Field(default="nova", description="OpenAI voice: nova (warm Siri-like), alloy, shimmer, echo, onyx")
     TTS_VOICE_RATE: int = Field(default=1, description="Speech rate adjustment (-10 to 10 for SAPI)")
     TTS_VOICE_VOLUME: int = Field(default=100, description="Volume 0-100")
     TTS_ENABLED: bool = Field(default=True)

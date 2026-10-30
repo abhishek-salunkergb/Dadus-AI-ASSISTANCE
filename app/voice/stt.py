@@ -29,6 +29,7 @@ class SpeechRecognitionSTT(BaseSTT):
         self.recognizer = sr.Recognizer()
         self.recognizer.energy_threshold = settings.STT_ENERGY_THRESHOLD
         self.recognizer.dynamic_energy_threshold = settings.STT_DYNAMIC_ENERGY_THRESHOLD
+        self.recognizer.pause_threshold = 0.8
 
     def transcribe_file(self, audio_path: str) -> Optional[str]:
         import speech_recognition as sr
@@ -109,6 +110,7 @@ class WhisperSTT(BaseSTT):
         recognizer = sr.Recognizer()
         recognizer.energy_threshold = settings.STT_ENERGY_THRESHOLD
         recognizer.dynamic_energy_threshold = settings.STT_DYNAMIC_ENERGY_THRESHOLD
+        recognizer.pause_threshold = 0.8
         try:
             with sr.Microphone() as source:
                 if not getattr(self, "_calibrated", False):
