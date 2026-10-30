@@ -1,0 +1,5 @@
+"""DADUS - Personal AI Operating Assistant."""
+__version__ = "1.0.0"
+__product_name__ = "DADUS"
+__assistant_name__ = "Dadus"
+__wake_phrase__ = "Hey Dadus"

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DADUS - Personal AI Operating Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar / Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-avatar">
+          <div class="brand-pulse"></div>
+          <span class="brand-initial">D</span>
+        </div>
+        <div class="brand-meta">
+          <h1 class="brand-title">DADUS</h1>
+          <p class="brand-sub">Operating Assistant</p>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="assistant">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          <span>Voice & Chat</span>
+        </button>
+        <button class="nav-item" data-tab="schedule">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Schedule & Reminders</span>
+        </button>
+        <button class="nav-item" data-tab="memory">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          <span>Memories & Prefs</span>
+        </button>
+        <button class="nav-item" data-tab="audit">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>Audit Logs</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-status">
+        <div class="status-indicator">
+          <span class="status-dot online"></span>
+          <span id="agentStatusText">Ready</span>
+        </div>
+        <div class="wake-phrase-hint">
+          Wake phrase: <span class="badge">"Hey Dadus"</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Bar -->
+      <header class="top-header">
+        <div class="header-status">
+          <div id="liveStatusBadge" class="status-badge status-ready">
+            <span class="badge-dot"></span>
+            <span class="badge-label">Ready</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button id="ttsToggleBtn" class="action-btn active" title="Toggle Spoken Audio">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <span class="btn-label">Audio On</span>
+          </button>
+          <button id="systemStatusBtn" class="action-btn" title="Refresh System Status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+            <span class="btn-label">System</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB 1: Voice & Chat -->
+      <section id="tab-assistant" class="tab-pane active">
+        <div class="chat-viewport">
+          <div id="messagesContainer" class="messages-container">
+            <!-- Initial Greeting -->
+            <div class="message assistant-message">
+              <div class="avatar">D</div>
+              <div class="message-bubble">
+                <p>Hello boss. DADUS is online and ready for your commands.</p>
+                <div class="quick-commands">
+                  <button class="command-chip" data-cmd="Hey Dadus, open Chrome.">"Open Chrome"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, play Believer.">"Play Believer"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, what is my schedule today?">"My schedule today"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, set volume to 30 percent.">"Set volume to 30%"</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Confirmation Banner / Modal -->
+        <div id="confirmationBanner" class="confirmation-banner hidden">
+          <div class="banner-content">
+            <div class="banner-icon">⚠️</div>
+            <div class="banner-info">
+              <h4>Confirmation Required</h4>
+              <p id="confirmationMessage">Boss, this action requires your explicit confirmation.</p>
+            </div>
+          </div>
+          <div class="banner-actions">
+            <button id="confirmYesBtn" class="confirm-btn confirm-yes">Confirm</button>
+            <button id="confirmNoBtn" class="confirm-btn confirm-no">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Clarification Banner (e.g. choose between Spotify / YouTube) -->
+        <div id="clarificationBanner" class="clarification-banner hidden">
+          <div class="clarification-content">
+            <p id="clarificationPrompt">Boss, which app should I use?</p>
+            <div id="clarificationOptions" class="clarification-options"></div>
+          </div>
+        </div>
+
+        <!-- Bottom Voice & Text Input Dock -->
+        <div class="input-dock">
+          <!-- Voice Visualizer Wave -->
+          <div id="voiceWave" class="voice-wave hidden">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+
+          <form id="chatForm" class="chat-form">
+            <button type="button" id="micBtn" class="mic-button" title="Push to Talk (Click to speak)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mic-icon"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+            </button>
+            <input type="text" id="userInput" class="chat-input" placeholder="Type a command or click the mic (e.g., 'open VS Code', 'play Believer')..." autocomplete="off">
+            <button type="submit" id="sendBtn" class="send-button" title="Send Command">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="send-icon"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB 2: Schedule & Reminders -->
+      <section id="tab-schedule" class="tab-pane">
+        <div class="tab-header">
+          <h2>Schedule & Reminders</h2>
+          <button id="refreshScheduleBtn" class="action-btn">Refresh</button>
+        </div>
+        <div class="schedule-grid">
+          <div class="schedule-card">
+            <h3>Active Reminders</h3>
+            <ul id="remindersList" class="item-list">
+              <li class="loading-item">Loading reminders...</li>
+            </ul>
+          </div>
+          <div class="schedule-card">
+            <h3>Today's Schedule</h3>
+            <ul id="eventsList" class="item-list">
+              <li class="loading-item">Loading schedule...</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: Memories & Preferences -->
+      <section id="tab-memory" class="tab-pane">
+        <div class="tab-header">
+          <h2>Stored Preferences & Memories</h2>
+          <button id="refreshMemoryBtn" class="action-btn">Refresh</button>
+        </div>
+        <div class="memory-card">
+          <p class="memory-subtitle">DADUS stores persistent preferences (like preferred music player, default editor, etc.)</p>
+          <div id="memoryList" class="memory-list">
+            <div class="loading-item">Loading memories...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: Audit Logs -->
+      <section id="tab-audit" class="tab-pane">
+        <div class="tab-header">
+          <h2>Security & Tool Audit Logs</h2>
+          <button id="refreshAuditBtn" class="action-btn">Refresh</button>
+        </div>
+        <div class="audit-card">
+          <div class="table-container">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>User Input</th>
+                  <th>Tool</th>
+                  <th>Permission</th>
+                  <th>Status</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="auditTableBody">
+                <tr><td colspan="6" class="loading-item">Loading audit history...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Audio player element -->
+  <audio id="audioPlayer" class="hidden"></audio>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
