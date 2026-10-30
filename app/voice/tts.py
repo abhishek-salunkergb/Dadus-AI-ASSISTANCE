@@ -125,9 +125,10 @@ class OpenAITTS(BaseTTS):
     def speak(self, text: str, async_mode: bool = True) -> None:
         audio_path = self.synthesize_to_file(text)
         if audio_path and os.path.exists(audio_path):
-            # Play using Windows default audio player / winsound
             import winsound
             winsound.PlaySound(audio_path, winsound.SND_FILENAME | (winsound.SND_ASYNC if async_mode else 0))
+        else:
+            WindowsSapiTTS().speak(text, async_mode=async_mode)
 
     def stop(self) -> None:
         """Interrupt active sound playback."""

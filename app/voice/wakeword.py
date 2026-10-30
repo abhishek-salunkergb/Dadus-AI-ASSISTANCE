@@ -95,6 +95,7 @@ class KeywordWakeWord(BaseWakeWord):
                         pass
                     logger.info(f"Wake phrase recognized! Command uttered: '{command}'")
                     callback(command)
+                    time.sleep(0.5)
             except Exception as ex:
                 logger.debug(f"Wake word loop cycle exception: {ex}")
                 time.sleep(0.5)

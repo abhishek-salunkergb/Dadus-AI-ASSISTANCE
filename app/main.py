@@ -83,7 +83,7 @@ def run_voice_loop() -> None:
     wakeword = get_wakeword_provider()
 
     logger.info(f"DADUS Voice Engine running. Say '{settings.WAKE_PHRASE}' followed by your command.")
-    tts.speak(f"DADUS voice monitoring active, boss. I am listening for {settings.WAKE_PHRASE}.")
+    tts.speak(f"DADUS voice monitoring active, boss. I am listening for {settings.WAKE_PHRASE}.", async_mode=False)
 
     def on_wake(command_text: str):
         if not command_text.strip():
@@ -108,7 +108,7 @@ def run_voice_loop() -> None:
             logger.info(f"Processing voice command: '{command_text}'")
             resp = dadus_agent.process_input(command_text, session_id="voice_session")
             logger.info(f"DADUS response: '{resp.text}'")
-            tts.speak(resp.text)
+            tts.speak(resp.text, async_mode=False)
 
     wakeword.start_listening(on_wake)
 
