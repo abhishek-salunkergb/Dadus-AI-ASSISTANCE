@@ -34,6 +34,7 @@ class KeywordWakeWord(BaseWakeWord):
         self.wake_phrases = ["hey dadus", "dadus", "ok dadus", "hi dadus"]
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._last_trigger_time: float = 0.0
 
     def start_listening(self, callback: Callable[[str], None]) -> None:
         if self._running:
@@ -50,11 +51,19 @@ class KeywordWakeWord(BaseWakeWord):
         logger.info("Wake-word engine stopped.")
 
     def _listen_loop(self, callback: Callable[[str], None]) -> None:
+        from app.voice.tts import get_tts_provider
+
         while self._running:
             try:
                 # Capture speech segment
                 text = self.stt.listen_and_transcribe(timeout=3, phrase_time_limit=8)
                 if not text:
+                    continue
+
+                now = time.time()
+                # Debounce to prevent duplicate repeated commands within 1.5s
+                if now - self._last_trigger_time < 1.5:
+                    logger.debug("Ignoring duplicate phrase within debounce window")
                     continue
 
                 lower = text.lower()
@@ -69,6 +78,12 @@ class KeywordWakeWord(BaseWakeWord):
                         break
 
                 if detected:
+                    self._last_trigger_time = now
+                    # Interrupt any ongoing assistant speech
+                    try:
+                        get_tts_provider().stop()
+                    except Exception:
+                        pass
                     logger.info(f"Wake phrase recognized! Command uttered: '{command}'")
                     callback(command)
             except Exception as ex:
@@ -92,7 +107,13 @@ class PushToTalkWakeWord(BaseWakeWord):
         pass
 
     def trigger_once(self, callback: Callable[[str], None]) -> Optional[str]:
-        """Record a single command and pass to callback."""
+        """Record a single command, interrupt playback, and pass to callback."""
+        from app.voice.tts import get_tts_provider
+        try:
+            get_tts_provider().stop()
+        except Exception:
+            pass
+
         logger.info("Push-to-talk activated. Listening...")
         text = self.stt.listen_and_transcribe(timeout=5, phrase_time_limit=10)
         if text:

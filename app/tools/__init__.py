@@ -19,29 +19,51 @@ from app.tools.files import SearchFilesTool, DeleteFileOrFolderTool
 from app.tools.reminders import CreateReminderTool, ListRemindersTool
 from app.tools.schedule import GetTodayScheduleTool, CreateScheduleItemTool
 from app.tools.memory_tools import StoreMemoryTool, ForgetMemoryTool
+from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, GetDailyBriefingTool
+from app.tools.media import PauseMusicTool, ResumeMusicTool, SkipMusicTrackTool, AdjustVolumeTool
+from app.tools.projects import OpenFolderTool, FindProjectAndOpenTool, OpenProjectGitHubTool
 
 def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
     """Register all standard DADUS tools."""
     tools = [
+        # Desktop Applications
         OpenAppTool(),
         CloseAppTool(),
         ListInstalledAppsTool(),
+        # Music & Media
         PlayMusicTool(),
+        PauseMusicTool(),
+        ResumeMusicTool(),
+        SkipMusicTrackTool(),
+        # Browser & Search
         OpenBrowserTool(),
         SearchWebTool(),
         SearchYouTubeTool(),
+        # Windows System & Hardware
         SetVolumeTool(),
+        AdjustVolumeTool(),
         MuteVolumeTool(),
         TakeScreenshotTool(),
         GetCurrentTimeTool(),
         GetSystemStatusTool(),
         LockDeviceTool(),
+        # Files & Projects
         SearchFilesTool(),
         DeleteFileOrFolderTool(),
+        OpenFolderTool(),
+        FindProjectAndOpenTool(),
+        OpenProjectGitHubTool(),
+        # Reminders & Schedule
         CreateReminderTool(),
         ListRemindersTool(),
         GetTodayScheduleTool(),
         CreateScheduleItemTool(),
+        # Productivity & Tasks
+        CreateTaskTool(),
+        ListTasksTool(),
+        CompleteTaskTool(),
+        GetDailyBriefingTool(),
+        # Long-Term Memory
         StoreMemoryTool(),
         ForgetMemoryTool()
     ]

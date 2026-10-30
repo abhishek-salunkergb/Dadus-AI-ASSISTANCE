@@ -170,6 +170,8 @@ class GetSystemStatusTool(BaseTool):
             cpu_pct = psutil.cpu_percent(interval=0.1)
             mem = psutil.virtual_memory()
             disk = psutil.disk_usage("C:\\")
+            used_gb = round(mem.used / (1024**3), 1)
+            total_gb = round(mem.total / (1024**3), 1)
 
             battery_info = "Desktop / AC power"
             try:
@@ -181,8 +183,8 @@ class GetSystemStatusTool(BaseTool):
                 pass
 
             msg = (
-                f"Boss, CPU is at {cpu_pct}%, memory is at {mem.percent}%, "
-                f"battery is at {battery_info}, and C: drive has {disk.free // (2**30)} GB free."
+                f"Boss, CPU is at {cpu_pct}%, and {used_gb} GB of RAM is currently being used out of {total_gb} GB ({mem.percent}%). "
+                f"Battery is at {battery_info}, and C: drive has {disk.free // (2**30)} GB free."
             )
             return ToolResult(
                 tool_name=self.name,
@@ -191,6 +193,8 @@ class GetSystemStatusTool(BaseTool):
                 data={
                     "cpu_percent": cpu_pct,
                     "ram_percent": mem.percent,
+                    "ram_used_gb": used_gb,
+                    "ram_total_gb": total_gb,
                     "battery": battery_info,
                     "disk_free_gb": disk.free // (2**30)
                 }

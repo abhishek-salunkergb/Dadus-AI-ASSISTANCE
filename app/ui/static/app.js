@@ -240,10 +240,79 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Load Schedule & Reminders
+  // Media Dock Buttons
+  document.getElementById('mediaPlayPauseBtn')?.addEventListener('click', () => {
+    sendMessage('pause the music');
+  });
+
+  document.getElementById('mediaSkipBtn')?.addEventListener('click', () => {
+    sendMessage('skip this song');
+  });
+
+  document.getElementById('volDownBtn')?.addEventListener('click', () => {
+    sendMessage('make the volume slightly lower');
+  });
+
+  document.getElementById('volUpBtn')?.addEventListener('click', () => {
+    sendMessage('increase the volume');
+  });
+
+  // Morning Briefing Button
+  document.getElementById('briefingBtn')?.addEventListener('click', () => {
+    sendMessage('give me my morning briefing');
+  });
+
+  // Load Tasks
+  async function loadTasks() {
+    const tList = document.getElementById('tasksList');
+    const badge = document.getElementById('taskCountBadge');
+    tList.innerHTML = '<li class="loading-item">Fetching tasks...</li>';
+
+    try {
+      const resp = await fetch('/api/tasks?status=pending');
+      const data = await resp.json();
+      const tasks = data.tasks || [];
+      if (badge) badge.textContent = tasks.length;
+
+      if (tasks.length === 0) {
+        tList.innerHTML = '<li class="loading-item">No pending tasks, boss.</li>';
+      } else {
+        tList.innerHTML = tasks.map(t => {
+          const prioClass = `prio-${t.priority}`;
+          const dueStr = t.due_date ? `<span class="task-due">Due: ${new Date(t.due_date).toLocaleDateString()}</span>` : '';
+          return `
+            <li class="schedule-item-row task-row">
+              <div class="task-info">
+                <span class="prio-tag ${prioClass}">[${escapeHtml(t.priority.toUpperCase())}]</span>
+                <span class="item-title">${escapeHtml(t.title)}</span>
+                ${dueStr}
+              </div>
+              <button class="task-complete-btn" data-id="${t.id}" title="Mark Complete">✓</button>
+            </li>
+          `;
+        }).join('');
+
+        document.querySelectorAll('.task-complete-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const taskId = btn.dataset.id;
+            await fetch(`/api/tasks/${taskId}/complete`, { method: 'POST' });
+            loadTasks();
+          });
+        });
+      }
+    } catch (e) {
+      tList.innerHTML = '<li class="loading-item">Failed to load tasks.</li>';
+    }
+  }
+
+  // Load Schedule, Reminders & Tasks
   async function loadSchedule() {
+    loadTasks();
     const remList = document.getElementById('remindersList');
     const evtList = document.getElementById('eventsList');
+    const remBadge = document.getElementById('reminderCountBadge');
+    const evtBadge = document.getElementById('scheduleCountBadge');
+
     remList.innerHTML = '<li class="loading-item">Fetching reminders...</li>';
     evtList.innerHTML = '<li class="loading-item">Fetching schedule...</li>';
 
@@ -251,13 +320,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const resp = await fetch('/api/schedule');
       const data = await resp.json();
 
+      if (remBadge) remBadge.textContent = data.reminders.length;
+      if (evtBadge) evtBadge.textContent = data.schedule_items.length;
+
       if (data.reminders.length === 0) {
         remList.innerHTML = '<li class="loading-item">No active reminders.</li>';
       } else {
         remList.innerHTML = data.reminders.map(r => `
           <li class="schedule-item-row">
             <div class="item-title">${escapeHtml(r.title)}</div>
-            <div class="item-time">⏰ ${new Date(r.target_time).toLocaleString()} (${r.status})</div>
+            <div class="item-time">⏰ ${new Date(r.target_time).toLocaleString()} ${r.recurrence !== 'none' ? `(${r.recurrence})` : ''}</div>
           </li>
         `).join('');
       }
@@ -292,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
         memList.innerHTML = data.memories.map(m => `
           <div class="memory-row">
             <div>
-              <div class="memory-key">${escapeHtml(m.key)}</div>
+              <div class="memory-key">${escapeHtml(m.key)} <span class="badge">(${escapeHtml(m.category)})</span></div>
               <div class="memory-val">${escapeHtml(m.value)}</div>
             </div>
             <button class="memory-del-btn" data-key="${escapeHtml(m.key)}">✕</button>

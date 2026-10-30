@@ -85,8 +85,10 @@ class IntentRouter:
     def _semantic_parse(self, text: str) -> Tuple[Optional[PlannedToolCall], Optional[str]]:
         """
         Understands natural language requests and maps them directly to structured tools.
-        Follows Section 3 & 10 requirements.
+        Follows all DADUS capabilities and natural conversational requirements.
         """
+        from app.memory.memory import memory_store
+
         clean = text.strip().rstrip(".?!")
         lower = clean.lower()
 
@@ -98,13 +100,53 @@ class IntentRouter:
                 lower = clean.lower()
                 break
 
-        # 1. Memory preferences: "Remember that I prefer Spotify"
+        # -------------------------------------------------------------
+        # 1. Conversational Brain & Coaching
+        # -------------------------------------------------------------
+        if any(p in lower for p in ["i'm bored", "im bored", "suggest something", "feeling bored"]):
+            return None, (
+                "Boss, if you're looking for something engaging: we could make progress on your "
+                "Python project, play some relaxing music on Spotify, or run through your tasks. "
+                "What sounds good?"
+            )
+
+        if "interview" in lower and any(p in lower for p in ["prepare", "tomorrow", "help me", "practice", "ready"]):
+            return None, (
+                "Boss, congratulations on the interview! Let's get you prepared. Would you like to "
+                "practice technical questions on Python and system design, run through a mock behavioral Q&A, "
+                "or review your project highlights?"
+            )
+
+        # -------------------------------------------------------------
+        # 2. Memory Storage & Updates (Store preferences, facts, topics)
+        # -------------------------------------------------------------
+        # Music preference: "Remember that I prefer Spotify"
         mem_prefer_match = re.search(r"remember\s+that\s+i\s+prefer\s+([a-zA-Z0-9_\s]+)", clean, re.IGNORECASE)
         if mem_prefer_match:
             app_pref = mem_prefer_match.group(1).strip(" .?!'\"").title()
             return PlannedToolCall(
                 tool_name="store_memory",
                 arguments={"key": "preferred_music_app", "value": app_pref, "category": "preference"}
+            ), None
+
+        # Learning tech: "Remember that I am learning Python", "Remember that I'm learning Django"
+        mem_learn_match = re.search(r"remember\s+(?:that\s+)?(?:i\s+am|i'm)\s+learning\s+([a-zA-Z0-9_\s#+]+)", clean, re.IGNORECASE)
+        if mem_learn_match:
+            tech = mem_learn_match.group(1).strip(" .?!'\"")
+            return PlannedToolCall(
+                tool_name="store_memory",
+                arguments={"key": "learning", "value": tech, "category": "topic"}
+            ), None
+
+        # Browser preference: "My preferred browser is Chrome", "Remember that I prefer Chrome"
+        browser_match = re.search(r"(?:remember\s+(?:that\s+)?)?(?:my\s+)?preferred\s+browser\s+(?:is\s+)?([a-zA-Z0-9\s]+)", clean, re.IGNORECASE)
+        if browser_match and "what" not in lower:
+            b = browser_match.group(1).strip(" .?!'\"").title()
+            if "Chrome" in b:
+                b = "Google Chrome"
+            return PlannedToolCall(
+                tool_name="store_memory",
+                arguments={"key": "preferred_browser", "value": b, "category": "preference"}
             ), None
 
         # General remember: "Remember that X is Y"
@@ -126,7 +168,164 @@ class IntentRouter:
                 arguments={"key": key}
             ), None
 
-        # 2. Open Application: "Open Chrome", "Launch Chrome", "Can you open Google Chrome?", "Open VS Code", "Open my code editor"
+        # -------------------------------------------------------------
+        # 3. Conversational Long-Term Memory Answering
+        # -------------------------------------------------------------
+        # Check if this is a direct question about memories
+        mem_answer = memory_store.answer_memory_query(clean)
+        if mem_answer:
+            return None, mem_answer
+
+        # -------------------------------------------------------------
+        # 4. Media Playback Controls & Relative Volume
+        # -------------------------------------------------------------
+        # Pause / Resume / Skip
+        if lower in ["pause", "pause music", "pause the music", "stop music", "stop the music"]:
+            return PlannedToolCall(tool_name="pause_music", arguments={}), None
+
+        if lower in ["resume", "resume music", "resume the music", "unpause"]:
+            return PlannedToolCall(tool_name="resume_music", arguments={}), None
+
+        if any(p in lower for p in ["skip this song", "skip the song", "skip song", "skip track", "next song", "next track"]):
+            return PlannedToolCall(tool_name="skip_music_track", arguments={}), None
+
+        # Relative Volume adjustments: "make the volume slightly lower", "increase the volume"
+        if any(p in lower for p in ["volume slightly lower", "slightly lower", "lower the volume", "volume lower", "turn it down", "turn down the volume", "softer"]):
+            return PlannedToolCall(
+                tool_name="adjust_volume",
+                arguments={"delta": -10, "direction": "lower"}
+            ), None
+
+        if any(p in lower for p in ["increase the volume", "volume higher", "turn it up", "turn up the volume", "louder", "volume up"]):
+            return PlannedToolCall(
+                tool_name="adjust_volume",
+                arguments={"delta": 10, "direction": "higher"}
+            ), None
+
+        # -------------------------------------------------------------
+        # 5. Productivity: Tasks, Reminders & Daily Briefing
+        # -------------------------------------------------------------
+        # Daily Briefing: "give me my morning briefing", "morning briefing"
+        if any(p in lower for p in ["morning briefing", "daily briefing", "give me my briefing", "my briefing"]):
+            return PlannedToolCall(tool_name="get_daily_briefing", arguments={}), None
+
+        # Tasks: "what are my tasks today?", "what tasks do I have today?"
+        if any(p in lower for p in ["what are my tasks today", "what tasks do i have today", "tasks today", "my tasks", "list tasks", "show tasks"]):
+            return PlannedToolCall(tool_name="list_tasks", arguments={"status": "pending"}), None
+
+        # Create Task: "create a task to complete my Django project"
+        task_create_match = re.search(r"(?:create|add)\s+(?:a\s+)?task\s+(?:to\s+)?(.+)", clean, re.IGNORECASE)
+        if task_create_match:
+            task_title = task_create_match.group(1).strip(" .?!'\"")
+            return PlannedToolCall(
+                tool_name="create_task",
+                arguments={"title": task_title, "priority": "medium"}
+            ), None
+
+        # Complete Task: "complete task 1", "mark task complete"
+        comp_task_match = re.search(r"(?:complete|finish|mark)\s+task\s+([0-9a-zA-Z\s]+)", clean, re.IGNORECASE)
+        if comp_task_match:
+            return PlannedToolCall(
+                tool_name="complete_task",
+                arguments={"task_id_or_title": comp_task_match.group(1).strip()}
+            ), None
+
+        # Recurring Reminder: "Remind me every day at 8 AM to study Python"
+        rec_remind = re.search(r"remind\s+me\s+(?:(every\s+day\s+at\s+[0-9:\sAPMapm]+|daily\s+at\s+[0-9:\sAPMapm]+|every\s+morning\s+at\s+[0-9:\sAPMapm]+))\s+to\s+(.+)", clean, re.IGNORECASE)
+        if rec_remind:
+            r_time = rec_remind.group(1).strip()
+            r_title = rec_remind.group(2).strip(" .?!'\"")
+            return PlannedToolCall(
+                tool_name="create_reminder",
+                arguments={"title": r_title, "time": r_time}
+            ), None
+
+        # Standard Reminder: "Remind me at 7 PM to study Python"
+        remind_match = re.search(r"remind\s+me\s+(?:at\s+([0-9:\sAPMapm]+)\s+)?to\s+(.+?)(?:\s+at\s+([0-9:\sAPMapm]+))?$", clean, re.IGNORECASE)
+        if remind_match:
+            time_part = (remind_match.group(1) or remind_match.group(3) or "in 1 hour").strip(" .?!'\"")
+            title_part = remind_match.group(2).strip(" .?!'\"")
+            return PlannedToolCall(
+                tool_name="create_reminder",
+                arguments={"title": title_part, "time": time_part}
+            ), None
+
+        if "list reminders" in lower or "show reminders" in lower or "my reminders" in lower:
+            return PlannedToolCall(tool_name="list_reminders", arguments={"status": "pending"}), None
+
+        # -------------------------------------------------------------
+        # 6. Projects, GitHub & Developer Workflow
+        # -------------------------------------------------------------
+        # "Open the application I use for coding"
+        if any(p in lower for p in ["application i use for coding", "app i use for coding", "app for coding", "what i use to code", "my coding app", "my code editor"]):
+            ed = memory_store.get_preferred_code_editor() or "Visual Studio Code"
+            return PlannedToolCall(
+                tool_name="open_app",
+                arguments={"app_name": ed}
+            ), None
+
+        # "Find my Python project and open its GitHub repository"
+        if "github" in lower and any(p in lower for p in ["project", "repo", "repository", "open its"]):
+            project_match = re.search(r"(?:find|open)\s+(?:my\s+)?([a-zA-Z0-9_\s]+?)(?:\s+project)?(?:'s|\s+and\s+open|\s+open|\s+its)?\s+github", clean, re.IGNORECASE)
+            proj_name = project_match.group(1).strip() if project_match else "Python"
+            if proj_name.lower() in ["my", "the", ""]:
+                proj_name = "Python"
+            return PlannedToolCall(
+                tool_name="open_project_github",
+                arguments={"project_name": proj_name}
+            ), None
+
+        # "Find my Django project and open it in VS Code"
+        proj_open_match = re.search(r"find\s+(?:my\s+)?([a-zA-Z0-9_\s]+?)(?:\s+project)?\s+and\s+open(?:\s+it)?\s+in\s+([a-zA-Z0-9\s]+)", clean, re.IGNORECASE)
+        if proj_open_match:
+            p_name = proj_open_match.group(1).strip()
+            p_editor = proj_open_match.group(2).strip()
+            if "code" in p_editor.lower():
+                p_editor = "Visual Studio Code"
+            return PlannedToolCall(
+                tool_name="find_project_and_open",
+                arguments={"project_name": p_name, "editor": p_editor}
+            ), None
+
+        # "Open my Python project"
+        open_proj_match = re.search(r"open\s+(?:my\s+)?([a-zA-Z0-9_\s]+?)\s+project", clean, re.IGNORECASE)
+        if open_proj_match:
+            p_name = open_proj_match.group(1).strip()
+            return PlannedToolCall(
+                tool_name="find_project_and_open",
+                arguments={"project_name": p_name, "editor": "Visual Studio Code"}
+            ), None
+
+        # -------------------------------------------------------------
+        # 7. File Search & Latest Files
+        # -------------------------------------------------------------
+        if "latest" in lower and any(ext in lower for ext in ["pdf", "file", "doc", "document", "sheet"]):
+            pattern = "*.pdf" if "pdf" in lower else "*.*"
+            return PlannedToolCall(
+                tool_name="search_files",
+                arguments={"query": f"latest {pattern}"}
+            ), None
+
+        # -------------------------------------------------------------
+        # 8. Web & YouTube Searches
+        # -------------------------------------------------------------
+        # "Open YouTube and search for Python tutorials"
+        yt_and_search = re.search(r"open\s+youtube\s+and\s+search\s+(?:for\s+)?(.+)", clean, re.IGNORECASE)
+        if yt_and_search:
+            q = yt_and_search.group(1).strip(" .?!'\"")
+            return PlannedToolCall(tool_name="search_youtube", arguments={"query": q}), None
+
+        yt_search = re.search(r"search\s+youtube\s+for\s+(.+)", lower)
+        if yt_search:
+            return PlannedToolCall(tool_name="search_youtube", arguments={"query": yt_search.group(1).strip()}), None
+
+        web_search = re.search(r"search\s+(?:the\s+web\s+|google\s+)?for\s+(.+)", lower)
+        if web_search:
+            return PlannedToolCall(tool_name="search_web", arguments={"query": web_search.group(1).strip()}), None
+
+        # -------------------------------------------------------------
+        # 9. Application Launch & Close
+        # -------------------------------------------------------------
         open_app_match = re.search(r"\b(?:open|launch|start|run|bring up)\s+(?:the\s+|my\s+|google\s+)?([a-zA-Z0-9\s\.\-_]+)", clean, re.IGNORECASE)
         if open_app_match:
             candidate = open_app_match.group(1).strip(" .?!'\"")
@@ -145,7 +344,6 @@ class IntentRouter:
                     arguments={"app_name": candidate.title() if len(candidate) > 4 else candidate.upper()}
                 ), None
 
-        # 3. Close Application: "Close Chrome", "Exit Notepad"
         close_app_match = re.search(r"\b(?:close|quit|exit|kill|terminate)\s+(?:the\s+|google\s+)?([a-zA-Z0-9\s\.\-_]+)", clean, re.IGNORECASE)
         if close_app_match:
             candidate = close_app_match.group(1).strip(" .?!'\"")
@@ -156,7 +354,10 @@ class IntentRouter:
                     arguments={"app_name": candidate}
                 ), None
 
-        # 4. Play Music: "Play Believer on Spotify", "Play Believer", "Put on Believer"
+        # -------------------------------------------------------------
+        # 10. Music Playback
+        # -------------------------------------------------------------
+        # "Play Believer on Spotify"
         music_on_match = re.search(r"(?:play|put on)\s+(.+?)\s+on\s+([a-zA-Z0-9\s]+)", clean, re.IGNORECASE)
         if music_on_match:
             song = music_on_match.group(1).strip(" .?!'\"").title()
@@ -166,19 +367,20 @@ class IntentRouter:
                 arguments={"song": song, "application": app}
             ), None
 
+        # "Play relaxing music", "Play Arijit Singh", "Play my favourite songs"
         music_match = re.search(r"(?:play|put on)\s+(.+)", clean, re.IGNORECASE)
         if music_match:
-            song = music_match.group(1).strip(" .?!'\"")
-            if song.lower() in ["music", "some music"]:
-                song = "Believer"
-            else:
-                song = song.title()
+            raw_song = music_match.group(1).strip(" .?!'\"")
+            if raw_song.lower() in ["music", "some music"]:
+                raw_song = "Believer"
             return PlannedToolCall(
                 tool_name="play_music",
-                arguments={"song": song, "application": None}
+                arguments={"song": raw_song.title(), "application": None}
             ), None
 
-        # 5. Volume: "Set volume to 30 percent", "Set volume to 30", "Volume 30"
+        # -------------------------------------------------------------
+        # 11. System Audio & Volume
+        # -------------------------------------------------------------
         vol_match = re.search(r"(?:set\s+)?volume\s+(?:to\s+)?(\d{1,3})(?:\s*%)?", lower)
         if vol_match:
             level = int(vol_match.group(1))
@@ -187,26 +389,14 @@ class IntentRouter:
                 arguments={"level": min(100, max(0, level))}
             ), None
 
-        # Mute / Unmute
         if "unmute" in lower:
             return PlannedToolCall(tool_name="mute_volume", arguments={"mute": False}), None
         if "mute" in lower:
             return PlannedToolCall(tool_name="mute_volume", arguments={"mute": True}), None
 
-        # 6. Reminders: "Remind me at 7 PM to study Python"
-        remind_match = re.search(r"remind\s+me\s+(?:at\s+([0-9:\sAPMapm]+)\s+)?to\s+(.+?)(?:\s+at\s+([0-9:\sAPMapm]+))?$", clean, re.IGNORECASE)
-        if remind_match:
-            time_part = (remind_match.group(1) or remind_match.group(3) or "in 1 hour").strip(" .?!'\"")
-            title_part = remind_match.group(2).strip(" .?!'\"")
-            return PlannedToolCall(
-                tool_name="create_reminder",
-                arguments={"title": title_part, "time": time_part}
-            ), None
-
-        if "list reminders" in lower or "show reminders" in lower or "my reminders" in lower:
-            return PlannedToolCall(tool_name="list_reminders", arguments={"status": "pending"}), None
-
-        # 7. Schedule: "What is my schedule today?", "Add gym at 5 PM"
+        # -------------------------------------------------------------
+        # 12. Schedule & Events
+        # -------------------------------------------------------------
         if "schedule" in lower:
             target_date = "today"
             if "tomorrow" in lower:
@@ -225,23 +415,24 @@ class IntentRouter:
                 arguments={"title": title, "start_time": stime}
             ), None
 
-        # 8. Screenshot: "Take a screenshot", "Capture screen"
+        # -------------------------------------------------------------
+        # 13. System Status, Hardware & Screenshots
+        # -------------------------------------------------------------
         if "screenshot" in lower or "capture screen" in lower:
             return PlannedToolCall(tool_name="take_screenshot", arguments={}), None
 
-        # 9. Time: "What time is it?", "What is the time?"
         if any(q in lower for q in ["what time", "what is the time", "what's the time", "current time", "the time", "tell me the time"]):
             return PlannedToolCall(tool_name="get_current_time", arguments={}), None
 
-        # 10. System Status: "System status", "How is my computer"
-        if "system status" in lower or "computer status" in lower or "cpu usage" in lower:
+        if any(p in lower for p in ["system status", "computer status", "cpu usage", "how much ram", "ram is currently", "ram used"]):
             return PlannedToolCall(tool_name="get_system_status", arguments={}), None
 
-        # 11. Lock Device: "Lock my PC", "Lock the screen", "Lock device"
         if "lock" in lower and any(w in lower for w in ["screen", "pc", "computer", "device", "workstation"]):
             return PlannedToolCall(tool_name="lock_device", arguments={}), None
 
-        # 12. Delete File / Folder: "Delete this folder", "Delete file X"
+        # -------------------------------------------------------------
+        # 14. File & Folder Operations (Confirmation Required)
+        # -------------------------------------------------------------
         del_match = re.search(r"\bdelete\s+(?:the\s+)?(?:folder|file|directory)?\s*(.+)", lower)
         if del_match:
             path_arg = del_match.group(1).strip(" .?!'\"")
@@ -252,20 +443,12 @@ class IntentRouter:
                 arguments={"path": path_arg}
             ), None
 
-        # 13. Search Web / YouTube
-        yt_search = re.search(r"search\s+youtube\s+for\s+(.+)", lower)
-        if yt_search:
-            return PlannedToolCall(tool_name="search_youtube", arguments={"query": yt_search.group(1).strip()}), None
-
-        web_search = re.search(r"search\s+(?:the\s+web\s+|google\s+)?for\s+(.+)", lower)
-        if web_search:
-            return PlannedToolCall(tool_name="search_web", arguments={"query": web_search.group(1).strip()}), None
-
-        # 14. Friendly conversational greetings
+        # -------------------------------------------------------------
+        # 15. Greetings & Conversational Fallback
+        # -------------------------------------------------------------
         if lower in ["hello", "hi", "hey", "good morning", "good evening", "are you there"]:
             return None, "Yes, boss? How can I help you?"
 
-        # Fallback default response
-        return None, "I'm ready, boss. You can ask me to open apps, play music, set reminders, or check your schedule."
+        return None, "I'm ready, boss. You can ask me to open apps, play music, set reminders, manage tasks, or check your schedule."
 
 intent_router = IntentRouter()

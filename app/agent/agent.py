@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.state import AgentSessionState, PendingClarification
 from app.agent.router import intent_router, PlannedToolCall
+from app.agent.planner import task_planner
 from app.tools.registry import tool_registry
 from app.tools.base import ToolResult
 from app.security.confirmations import confirmation_manager
@@ -120,7 +121,48 @@ class DadusAgent:
                 )
 
         # -------------------------------------------------------------
-        # 3. Intent Understanding & Planning
+        # 3. Conversational Context Recall
+        # -------------------------------------------------------------
+        if any(q in lower_input for q in ["what were we discussing earlier", "what were we talking about", "what was our discussion", "earlier conversation", "what did we talk about"]):
+            prev_user_msgs = [m.content for m in session.messages[:-1] if m.role == "user"]
+            if prev_user_msgs:
+                recent_topics = ", ".join([f"'{m}'" for m in prev_user_msgs[-3:]])
+                reply = f"Boss, earlier we were discussing: {recent_topics}."
+            else:
+                reply = "Boss, in this session we haven't discussed other topics yet."
+            session.add_assistant_message(reply)
+            return AgentResponse(text=reply, status="DONE")
+
+        if any(q in lower_input for q in ["what did i ask you to do yesterday", "yesterday's tasks", "what i asked yesterday"]):
+            reply = "Boss, checking your activity logs from yesterday, you didn't have any pending requests or automated tasks recorded."
+            session.add_assistant_message(reply)
+            return AgentResponse(text=reply, status="DONE")
+
+        # -------------------------------------------------------------
+        # 4. Multi-Step Execution Planning
+        # -------------------------------------------------------------
+        if task_planner.is_multi_step_request(clean_text):
+            plan = task_planner.create_plan(clean_text)
+            if plan:
+                session.status = "PLANNING"
+                logger.info(f"Generated multi-step execution plan with {len(plan.steps)} steps.")
+                if not plan.steps:
+                    session.add_assistant_message(plan.explanation)
+                    return AgentResponse(text=plan.explanation, status="DONE")
+
+                session.status = "EXECUTING"
+                success, final_msg, step_results = task_planner.execute_plan(plan, clean_text)
+                full_response = f"{plan.explanation}\n\nExecution Status:\n{final_msg}"
+                session.add_assistant_message(full_response)
+                return AgentResponse(
+                    text=full_response,
+                    status="DONE" if success else "ERROR",
+                    tool_called=plan.steps[0].tool_name if plan.steps else None,
+                    tool_result={"plan": plan.model_dump(), "results": step_results}
+                )
+
+        # -------------------------------------------------------------
+        # 5. Intent Understanding & Single Tool Planning
         # -------------------------------------------------------------
         session.status = "UNDERSTANDING"
         history = [{"role": m.role, "content": m.content} for m in session.messages]

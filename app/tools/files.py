@@ -33,7 +33,10 @@ class SearchFilesTool(BaseTool):
         search_dirs = [directory] if directory else settings.ALLOWED_SEARCH_ROOTS
         matches: List[str] = []
 
-        clean_pattern = f"*{query.strip()}*" if "*" not in query else query.strip()
+        is_latest_req = "latest" in query.lower()
+        clean_q = query.lower().replace("latest", "").strip(" .?!*")
+        if not clean_q and is_latest_req:
+            clean_q = ""
 
         for sdir in search_dirs:
             if not sdir or not os.path.exists(sdir):
@@ -45,22 +48,31 @@ class SearchFilesTool(BaseTool):
                     if rel_depth > 3:
                         continue
                     for f in files:
-                        if query.lower() in f.lower():
+                        if not clean_q or clean_q in f.lower():
                             matches.append(os.path.join(root, f))
-                            if len(matches) >= 20:
+                            if len(matches) >= 30:
                                 break
-                    if len(matches) >= 20:
+                    if len(matches) >= 30:
                         break
             except (PermissionError, OSError) as ex:
                 logger.debug(f"Skipping directory {sdir} due to access limit: {ex}")
                 continue
 
         if matches:
+            # If latest was requested, sort by modification time descending
+            if is_latest_req:
+                try:
+                    matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                except Exception:
+                    pass
+
+            top_name = Path(matches[0]).name
+            detail_msg = f"Found {len(matches)} matching files, boss. Most recent: '{top_name}'."
             return ToolResult(
                 tool_name=self.name,
                 success=True,
-                message=f"Found {len(matches)} matching files, boss.",
-                data={"matches": matches}
+                message=detail_msg,
+                data={"matches": matches[:15], "latest": matches[0]}
             )
         else:
             return ToolResult(

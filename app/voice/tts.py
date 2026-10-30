@@ -22,6 +22,11 @@ class BaseTTS(ABC):
         """Synthesize speech to a WAV or MP3 audio file and return the path."""
         pass
 
+    @abstractmethod
+    def stop(self) -> None:
+        """Interrupt active speech playback immediately."""
+        pass
+
 class WindowsSapiTTS(BaseTTS):
     """
     Native Windows SAPI.SpVoice TTS provider.
@@ -96,6 +101,19 @@ class WindowsSapiTTS(BaseTTS):
             except Exception:
                 pass
 
+    def stop(self) -> None:
+        """Interrupt and silence any playing speech immediately."""
+        try:
+            import pythoncom
+            import win32com.client
+            pythoncom.CoInitialize()
+            speaker = win32com.client.Dispatch("SAPI.SpVoice")
+            # SVSFPurgeBeforeSpeak (2) purges existing speech
+            speaker.Speak("", 2)
+            pythoncom.CoUninitialize()
+        except Exception as ex:
+            logger.debug(f"Stop TTS encountered: {ex}")
+
 class OpenAITTS(BaseTTS):
     """OpenAI cloud neural TTS provider."""
 
@@ -109,6 +127,14 @@ class OpenAITTS(BaseTTS):
             # Play using Windows default audio player / winsound
             import winsound
             winsound.PlaySound(audio_path, winsound.SND_FILENAME | (winsound.SND_ASYNC if async_mode else 0))
+
+    def stop(self) -> None:
+        """Interrupt active sound playback."""
+        try:
+            import winsound
+            winsound.PlaySound(None, winsound.SND_PURGE)
+        except Exception:
+            pass
 
     def synthesize_to_file(self, text: str, destination_path: Optional[str] = None) -> Optional[str]:
         if not settings.OPENAI_API_KEY:
@@ -138,10 +164,15 @@ class MockTTS(BaseTTS):
 
     def __init__(self):
         self.spoken_history = []
+        self.stopped = False
 
     def speak(self, text: str, async_mode: bool = True) -> None:
         self.spoken_history.append(text)
+        self.stopped = False
         logger.info(f"[MockTTS]: {text}")
+
+    def stop(self) -> None:
+        self.stopped = True
 
     def synthesize_to_file(self, text: str, destination_path: Optional[str] = None) -> Optional[str]:
         self.spoken_history.append(text)

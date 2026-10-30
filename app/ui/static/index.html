@@ -87,10 +87,13 @@
               <div class="message-bubble">
                 <p>Hello boss. DADUS is online and ready for your commands.</p>
                 <div class="quick-commands">
-                  <button class="command-chip" data-cmd="Hey Dadus, open Chrome.">"Open Chrome"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, play Believer.">"Play Believer"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, what is my schedule today?">"My schedule today"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, set volume to 30 percent.">"Set volume to 30%"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, I'm bored. Suggest something.">"I'm bored"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, what are my tasks today?">"My tasks today"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, give me my morning briefing.">"Morning briefing"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, play relaxing music.">"Play relaxing music"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, find my latest PDF.">"Find latest PDF"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, find my Python project, open it in VS Code, and open its GitHub repository.">"Project & GitHub"</button>
+                  <button class="command-chip" data-cmd="Hey Dadus, I have an interview tomorrow. Help me prepare.">"Interview prep"</button>
                 </div>
               </div>
             </div>
@@ -120,40 +123,73 @@
           </div>
         </div>
 
-        <!-- Bottom Voice & Text Input Dock -->
-        <div class="input-dock">
-          <!-- Voice Visualizer Wave -->
-          <div id="voiceWave" class="voice-wave hidden">
-            <span></span><span></span><span></span><span></span><span></span>
+        <!-- Bottom Voice & Text Input Dock with Hardware Media Controls -->
+        <div class="dock-wrapper">
+          <div class="media-dock-bar">
+            <span class="media-label">Media & Audio:</span>
+            <button id="mediaPlayPauseBtn" class="media-mini-btn" title="Toggle Play / Pause">⏯ Play/Pause</button>
+            <button id="mediaSkipBtn" class="media-mini-btn" title="Skip to Next Track">⏭ Next Track</button>
+            <button id="volDownBtn" class="media-mini-btn" title="Volume Lower -10%">🔉 -10%</button>
+            <button id="volUpBtn" class="media-mini-btn" title="Volume Higher +10%">🔊 +10%</button>
           </div>
 
-          <form id="chatForm" class="chat-form">
-            <button type="button" id="micBtn" class="mic-button" title="Push to Talk (Click to speak)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mic-icon"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-            </button>
-            <input type="text" id="userInput" class="chat-input" placeholder="Type a command or click the mic (e.g., 'open VS Code', 'play Believer')..." autocomplete="off">
-            <button type="submit" id="sendBtn" class="send-button" title="Send Command">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="send-icon"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
-          </form>
+          <div class="input-dock">
+            <!-- Voice Visualizer Wave -->
+            <div id="voiceWave" class="voice-wave hidden">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+
+            <form id="chatForm" class="chat-form">
+              <button type="button" id="micBtn" class="mic-button" title="Push to Talk (Click to speak)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mic-icon"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+              </button>
+              <input type="text" id="userInput" class="chat-input" placeholder="Type a command or click the mic (e.g., 'play relaxing music', 'what are my tasks today?')..." autocomplete="off">
+              <button type="submit" id="sendBtn" class="send-button" title="Send Command">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="send-icon"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 
-      <!-- TAB 2: Schedule & Reminders -->
+      <!-- TAB 2: Schedule & Productivity -->
       <section id="tab-schedule" class="tab-pane">
         <div class="tab-header">
-          <h2>Schedule & Reminders</h2>
-          <button id="refreshScheduleBtn" class="action-btn">Refresh</button>
+          <h2>Productivity, Tasks & Schedule</h2>
+          <div class="header-group-actions">
+            <button id="briefingBtn" class="action-btn active">🌅 Morning Briefing</button>
+            <button id="refreshScheduleBtn" class="action-btn">Refresh</button>
+          </div>
         </div>
-        <div class="schedule-grid">
+        <div class="schedule-grid three-columns">
+          <!-- Column 1: Tasks -->
           <div class="schedule-card">
-            <h3>Active Reminders</h3>
+            <div class="card-title-bar">
+              <h3>Pending Tasks</h3>
+              <span id="taskCountBadge" class="badge">0</span>
+            </div>
+            <ul id="tasksList" class="item-list">
+              <li class="loading-item">Loading tasks...</li>
+            </ul>
+          </div>
+
+          <!-- Column 2: Reminders -->
+          <div class="schedule-card">
+            <div class="card-title-bar">
+              <h3>Active Reminders</h3>
+              <span id="reminderCountBadge" class="badge">0</span>
+            </div>
             <ul id="remindersList" class="item-list">
               <li class="loading-item">Loading reminders...</li>
             </ul>
           </div>
+
+          <!-- Column 3: Schedule -->
           <div class="schedule-card">
-            <h3>Today's Schedule</h3>
+            <div class="card-title-bar">
+              <h3>Today's Schedule</h3>
+              <span id="scheduleCountBadge" class="badge">0</span>
+            </div>
             <ul id="eventsList" class="item-list">
               <li class="loading-item">Loading schedule...</li>
             </ul>

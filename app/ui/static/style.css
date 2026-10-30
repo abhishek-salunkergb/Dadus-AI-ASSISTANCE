@@ -788,3 +788,143 @@ body {
   font-style: italic;
   font-size: 13px;
 }
+
+/* ========================================================
+   Media Dock Bar & Task Management Extensions
+   ======================================================== */
+.dock-wrapper {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.media-dock-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(16, 21, 34, 0.7);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(12px);
+}
+
+.media-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+.media-mini-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.media-mini-btn:hover {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: var(--accent-cyan);
+  color: #fff;
+}
+
+.three-columns {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+
+@media (max-width: 1024px) {
+  .three-columns {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.card-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.header-group-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--accent-cyan);
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.task-due {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.task-complete-btn {
+  background: rgba(82, 196, 26, 0.15);
+  border: 1px solid rgba(82, 196, 26, 0.3);
+  color: #52c41a;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.task-complete-btn:hover {
+  background: #52c41a;
+  color: #000;
+}
+
+.prio-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.prio-high {
+  background: rgba(255, 77, 79, 0.2);
+  color: var(--accent-red);
+}
+
+.prio-medium {
+  background: rgba(245, 166, 35, 0.2);
+  color: var(--accent-gold);
+}
+
+.prio-low {
+  background: rgba(79, 172, 254, 0.2);
+  color: var(--accent-blue);
+}

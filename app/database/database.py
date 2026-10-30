@@ -18,8 +18,22 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db() -> None:
-    """Initialize database tables."""
+    """Initialize database tables and run lightweight migrations."""
     Base.metadata.create_all(bind=engine)
+    
+    # Lightweight schema migration for SQLite (handles existing installations)
+    with engine.connect() as conn:
+        try:
+            res = conn.exec_driver_sql("PRAGMA table_info(reminders)").fetchall()
+            existing_cols = {row[1] for row in res}
+            if existing_cols:
+                if "recurrence" not in existing_cols:
+                    conn.exec_driver_sql("ALTER TABLE reminders ADD COLUMN recurrence VARCHAR(32) DEFAULT 'none'")
+                if "last_notified_at" not in existing_cols:
+                    conn.exec_driver_sql("ALTER TABLE reminders ADD COLUMN last_notified_at DATETIME")
+                conn.commit()
+        except Exception:
+            pass
 
 @contextmanager
 def get_db_context() -> Generator[Session, None, None]:

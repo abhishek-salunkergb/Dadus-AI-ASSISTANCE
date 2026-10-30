@@ -18,8 +18,11 @@ from app.agent.agent import dadus_agent, AgentResponse
 from app.tools.registry import tool_registry
 from app.security.confirmations import confirmation_manager
 from app.database.database import get_db, init_db
-from app.database.models import Reminder, ScheduleItem, MemoryItem, AuditLog
+from app.database.models import Reminder, ScheduleItem, MemoryItem, AuditLog, TaskItem
+from app.productivity.reminder_daemon import reminder_daemon
+from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, GetDailyBriefingTool
 from app.voice.tts import get_tts_provider
+from contextlib import asynccontextmanager
 from app.voice.stt import get_stt_provider
 
 logger = logging.getLogger("DADUS.API")
@@ -27,10 +30,23 @@ logger = logging.getLogger("DADUS.API")
 # Ensure database is initialized
 init_db()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        reminder_daemon.start()
+    except Exception as ex:
+        logger.warning(f"Could not start reminder daemon: {ex}")
+    yield
+    try:
+        reminder_daemon.stop()
+    except Exception as ex:
+        logger.warning(f"Could not stop reminder daemon: {ex}")
+
 app = FastAPI(
     title="DADUS Personal AI Assistant API",
     description="Backend API powering DADUS Desktop and future Mobile clients.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS setup
@@ -182,6 +198,43 @@ def get_audio_file(filename: str):
         raise HTTPException(status_code=404, detail="Audio file not found")
     return FileResponse(str(audio_path), media_type="audio/wav")
 
+class TaskCreateRequest(BaseModel):
+    title: str
+    priority: Optional[str] = "medium"
+    due_date: Optional[str] = None
+    description: Optional[str] = None
+
+# ==========================================
+# Task & Briefing Endpoints
+# ==========================================
+@app.get("/api/tasks")
+def list_tasks_endpoint(status: Optional[str] = "pending", priority: Optional[str] = None):
+    """Retrieve user productivity tasks."""
+    tool = ListTasksTool()
+    res = tool.execute(status=status, priority=priority)
+    return res.data or {"tasks": []}
+
+@app.post("/api/tasks")
+def create_task_endpoint(req: TaskCreateRequest):
+    """Create a new task with priority and optional due date."""
+    tool = CreateTaskTool()
+    res = tool.execute(title=req.title, priority=req.priority, due_date=req.due_date, description=req.description)
+    return {"success": res.success, "message": res.message, "task": res.data}
+
+@app.post("/api/tasks/{task_id}/complete")
+def complete_task_endpoint(task_id: str):
+    """Mark a task as completed."""
+    tool = CompleteTaskTool()
+    res = tool.execute(task_id_or_title=task_id)
+    return {"success": res.success, "message": res.message, "task": res.data}
+
+@app.get("/api/briefing")
+def get_briefing_endpoint():
+    """Retrieve executive morning briefing."""
+    tool = GetDailyBriefingTool()
+    res = tool.execute()
+    return {"success": res.success, "message": res.message, "data": res.data}
+
 # ==========================================
 # Schedule & Reminder Endpoints
 # ==========================================
@@ -226,6 +279,22 @@ def get_audit_logs(limit: int = 50, db: Session = Depends(get_db)):
     """Retrieve recent audit logs."""
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).all()
     return {"logs": [l.to_dict() for l in logs]}
+# ==========================================
+# Connected Devices Endpoints (Multi-Device / Mobile)
+# ==========================================
+@app.get("/api/devices")
+def list_connected_devices():
+    """Retrieve all connected client devices (desktop, Android, web)."""
+    from app.devices import device_manager
+    return {"devices": [d.dict() for d in device_manager.list_devices()]}
+
+@app.post("/api/devices/register")
+def register_connected_device(device_data: Dict[str, Any]):
+    """Register a new device or mobile client."""
+    from app.devices import device_manager, ConnectedDevice
+    dev = ConnectedDevice(**device_data)
+    registered = device_manager.register_device(dev)
+    return {"success": True, "device": registered.dict()}
 
 # Mount static files for UI if directory exists
 static_dir = Path(__file__).resolve().parent.parent / "ui" / "static"

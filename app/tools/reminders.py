@@ -66,33 +66,53 @@ def parse_natural_time(time_str: str) -> datetime:
 # ==========================================
 class CreateReminderInput(BaseModel):
     title: str = Field(description="Title or description of the reminder, e.g. 'study Python'")
-    time: str = Field(description="Time for the reminder, e.g. '7 PM', 'tomorrow at 9 AM', 'in 30 minutes'")
+    time: str = Field(description="Time for the reminder, e.g. '7 PM', 'tomorrow at 9 AM', 'every day at 8 AM'")
+    recurrence: Optional[str] = Field(default="none", description="Recurrence: 'none', 'daily', 'weekly'")
 
 class CreateReminderTool(BaseTool):
     name = "create_reminder"
-    description = "Creates a persistent reminder for a specific time."
+    description = "Creates a persistent reminder or recurring reminder for a specific time."
     permission_level = PermissionLevel.SAFE
     args_schema = CreateReminderInput
 
-    def execute(self, title: str, time: str) -> ToolResult:
+    def execute(self, title: str, time: str, recurrence: Optional[str] = "none") -> ToolResult:
         try:
-            target_dt = parse_natural_time(time)
+            time_lower = time.lower()
+            rec = recurrence or "none"
+            if "every day" in time_lower or "daily" in time_lower or "everyday" in time_lower:
+                rec = "daily"
+                time_clean = re.sub(r"\b(every\s*day|daily)\b", "", time, flags=re.IGNORECASE).strip()
+            elif "every week" in time_lower or "weekly" in time_lower:
+                rec = "weekly"
+                time_clean = re.sub(r"\b(every\s*week|weekly)\b", "", time, flags=re.IGNORECASE).strip()
+            else:
+                time_clean = time
+
+            target_dt = parse_natural_time(time_clean)
             with get_db_context() as db:
                 reminder = Reminder(
                     title=title.strip(),
                     target_time=target_dt,
                     status="pending",
-                    recurrence="none"
+                    recurrence=rec
                 )
                 db.add(reminder)
                 db.flush()
 
-            time_formatted = target_dt.strftime("%I:%M %p on %A, %B %d")
+            time_formatted = target_dt.strftime("%I:%M %p")
+            if rec == "daily":
+                msg = f"I've set a daily reminder to '{title}' every day at {time_formatted}, boss."
+            elif rec == "weekly":
+                msg = f"I've set a weekly reminder to '{title}' at {time_formatted}, boss."
+            else:
+                full_dt = target_dt.strftime("%I:%M %p on %A, %B %d")
+                msg = f"I've set a reminder to '{title}' for {full_dt}, boss."
+
             return ToolResult(
                 tool_name=self.name,
                 success=True,
-                message=f"I've set a reminder to '{title}' for {time_formatted}, boss.",
-                data={"title": title, "target_time": target_dt.isoformat()}
+                message=msg,
+                data={"title": title, "target_time": target_dt.isoformat(), "recurrence": rec}
             )
         except Exception as ex:
             logger.error(f"Failed to create reminder: {ex}")

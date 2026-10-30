@@ -433,48 +433,99 @@ DADUS was architected so an Android client can connect to the existing core with
 
 ---
 
-## 16. Future Model Context Protocol (MCP) Support
+## 15. Model Context Protocol (MCP) Server Integration
 
-Every tool in DADUS implements `.to_mcp_tool()`, making it ready to expose as an MCP Tool Server:
+DADUS provides a fully standards-compliant **Model Context Protocol (MCP)** server operating via JSON-RPC 2.0 over standard I/O and programmatic interfaces:
 
-```json
-{
-  "name": "open_app",
-  "description": "Opens a desktop application on Windows (e.g. Chrome, VS Code, Spotify).",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "app_name": { "type": "string", "description": "Name of the application to open" }
-    },
-    "required": ["app_name"]
-  }
-}
+- **Protocol Version:** `2024-11-05`
+- **Exposed Methods:**
+  - `initialize`: Performs client handshake, reports server capabilities, and identifies `dadus-mcp-server v1.0.0`.
+  - `ping`: Standard MCP healthcheck endpoint.
+  - `tools/list`: Dynamically exports all 29 approved DADUS tools formatted according to MCP JSON Schema specification.
+  - `tools/call`: Dispatches requests through the central DADUS Permission Layer and execution registry with strict argument validation.
+
+### Running DADUS MCP Server
+
+Launch the MCP server in standard input/output mode:
+```powershell
+python -m app.mcp.server
 ```
 
-Future MCP server clusters:
-- **DADUS Computer Tools:** `open_app`, `close_app`, `set_volume`, `take_screenshot`, `lock_device`.
-- **DADUS Browser Tools:** `open_browser`, `search_web`, `search_youtube`.
-- **DADUS Personal Tools:** `create_reminder`, `get_today_schedule`, `store_memory`.
+Connect using the included programmatic client in Python:
+```python
+from app.mcp.client import MCPClient
+
+client = MCPClient()
+init_res = client.initialize()
+tools = client.list_tools()
+result = client.call_tool("get_current_time", {})
+print(result)
+```
 
 ---
 
-## 17. Acceptance Test Verification Matrix
+## 16. Multi-Device & Mobile Architecture
 
-| Test ID | User Command | Expected Behavior | Automated Test Status |
+DADUS incorporates a decoupled multi-device management system in `app/devices/`:
+
+- **Device Registry:** Tracks connected clients (`windows_desktop`, `android_mobile`, `web_client`, `mcp_client`).
+- **Capability Routing:** Validates whether a target device has specific capabilities (e.g. `SCREEN_CAPTURE`, `HARDWARE_MEDIA_KEYS`, `AUDIO_PLAYBACK`) before dispatching actions.
+- **REST Endpoints:**
+  - `GET /api/devices`: List all registered devices and their active capabilities.
+  - `POST /api/devices/register`: Register new mobile or remote client endpoints with authentication tokens.
+
+---
+
+## 17. Phase 3 Acceptance Test Verification Matrix
+
+All 10 Phase 3 Acceptance Scenarios have automated test coverage verified via `pytest`:
+
+| Scenario | User Command | Expected Execution | Test Verification |
 |---|---|---|---|
-| **TEST 1** | `"Hey Dadus, open Chrome."` | Opens Google Chrome via verified path | ✅ PASSED (`test_acceptance_test_1_open_chrome`) |
-| **TEST 2** | `"Hey Dadus, open VS Code."` | Opens Visual Studio Code | ✅ PASSED (`test_acceptance_test_2_open_vscode`) |
-| **TEST 3** | `"Hey Dadus, play Believer."` | Disambiguates between Spotify & YouTube | ✅ PASSED (`test_acceptance_test_3_music_clarification`) |
-| **TEST 4** | `"Hey Dadus, play Believer on Spotify."` | Selects Spotify and executes search/playback | ✅ PASSED (`test_acceptance_test_4_play_on_spotify`) |
-| **TEST 5** | `"Hey Dadus, set volume to 30 percent."` | Sets system audio volume to 30% via `pycaw` | ✅ PASSED (`test_acceptance_test_5_set_volume`) |
-| **TEST 6** | `"Hey Dadus, remind me at 7 PM to study Python."` | Persists reminder in SQLite | ✅ PASSED (`test_acceptance_test_6_create_reminder`) |
-| **TEST 7** | `"What is my schedule today?"` | Returns stored schedule items for today | ✅ PASSED (`test_acceptance_test_7_today_schedule`) |
-| **TEST 8** | `"Hey Dadus, delete this folder."` | Triggers explicit confirmation prompt | ✅ PASSED (`test_acceptance_test_8_delete_confirmation`) |
-| **TEST 9** | `"Hey Dadus, give me my saved password."` | Strictly blocks credential access | ✅ PASSED (`test_acceptance_test_9_password_restricted`) |
-| **TEST 10**| `"Remember that I prefer Spotify."` ➔ `"Play Believer."` | Stores preference, uses Spotify directly | ✅ PASSED (`test_acceptance_test_10_memory_preference_workflow`) |
+| **1** | `"Remember that I prefer Spotify."` | Stores `preferred_music_app="Spotify"` with category `preference` | ✅ PASSED (`test_scenario_1_and_2_memory_preference_and_recall`) |
+| **2** | `"What music app do I prefer?"` | Recalls stored preference: *"Boss, you prefer Spotify."* | ✅ PASSED (`test_scenario_1_and_2_memory_preference_and_recall`) |
+| **3** | `"Remind me every day at 8 AM to study Python."` | Creates daily recurring reminder; daemon advances schedule | ✅ PASSED (`test_scenario_3_recurring_reminder`) |
+| **4** | `"What are my tasks today?"` | Lists pending tasks prioritized by urgency with due dates | ✅ PASSED (`test_scenario_4_tasks_query`) |
+| **5** | `"Find my Django project and open it in VS Code."` | Locates project directory and launches it in Visual Studio Code | ✅ PASSED (`test_scenario_5_find_project_open_vscode`) |
+| **6** | `"Take a screenshot."` | Captures primary display using Pillow into timestamped file | ✅ PASSED (`test_scenario_6_take_screenshot`) |
+| **7** | `"Play relaxing music."` | Routes directly to Spotify using remembered user preference | ✅ PASSED (`test_scenario_7_play_relaxing_music`) |
+| **8** | `"What were we discussing earlier?"` | Recalls prior topics discussed within the current conversation session | ✅ PASSED (`test_scenario_8_conversational_recall_earlier`) |
+| **9** | `"Find my Python project and open its GitHub repository."` | Inspects `.git/config` for origin URL and opens repository in browser | ✅ PASSED (`test_scenario_9_find_project_and_open_github`) |
+| **10**| `"Explain what you are doing before executing this multi-step task."` | Outlines decomposed intent and sequential verification steps before running | ✅ PASSED (`test_scenario_10_explain_plan_before_executing`) |
+
+---
+
+## 18. Exact Commands to Launch DADUS
+
+1. **Launch Desktop Web UI & Background Agent:**
+   ```powershell
+   python app/main.py --mode web
+   ```
+   Open `http://127.0.0.1:8000` in Google Chrome or any modern browser.
+
+2. **Launch Interactive Voice Mode (Wake Word `"Hey Dadus"`):**
+   ```powershell
+   python app/main.py --mode voice
+   ```
+
+3. **Launch Terminal CLI:**
+   ```powershell
+   python app/main.py --mode cli
+   ```
+
+4. **Launch Standards-Compliant MCP Server:**
+   ```powershell
+   python -m app.mcp.server
+   ```
+
+5. **Execute Full Automated Test Suite (70 Tests):**
+   ```powershell
+   python -m pytest -v
+   ```
 
 ---
 
 ## License
 
-MIT License. Built with engineering rigor for DADUS.
+MIT License. Engineered for DADUS.
+
