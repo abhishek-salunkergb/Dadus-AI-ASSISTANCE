@@ -95,7 +95,8 @@ class WhisperSTT(BaseSTT):
             with open(audio_path, "rb") as audio_file:
                 transcription = client.audio.transcriptions.create(
                     model="whisper-1",
-                    file=audio_file
+                    file=audio_file,
+                    prompt="Hey Dadus, Dadus, play music, open Chrome, take screenshot, set reminder."
                 )
                 return transcription.text.strip()
         except Exception as ex:
@@ -106,9 +107,13 @@ class WhisperSTT(BaseSTT):
         # Records to temp file via speech_recognition then calls Whisper
         import speech_recognition as sr
         recognizer = sr.Recognizer()
+        recognizer.energy_threshold = settings.STT_ENERGY_THRESHOLD
+        recognizer.dynamic_energy_threshold = settings.STT_DYNAMIC_ENERGY_THRESHOLD
         try:
             with sr.Microphone() as source:
-                recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                if not getattr(self, "_calibrated", False):
+                    recognizer.adjust_for_ambient_noise(source, duration=0.3)
+                    self._calibrated = True
                 audio = recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
                 temp_wav = str(settings.DATA_DIR / "audio" / "temp_whisper.wav")
                 with open(temp_wav, "wb") as f:

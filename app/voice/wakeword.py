@@ -70,12 +70,21 @@ class KeywordWakeWord(BaseWakeWord):
                 detected = False
                 command = ""
 
-                for phrase in self.wake_phrases:
-                    if phrase in lower:
-                        detected = True
-                        idx = lower.find(phrase) + len(phrase)
-                        command = text[idx:].strip(" ,.?!")
-                        break
+                # Robust phonetic pattern matching for 'Hey Dadus' to catch STT acoustic variants
+                import re
+                wake_pattern = r"\b(hey|hi|ok|hello)?\s*(dadus|dadas|dad\s*is|dadu|datus|daddus|dartus|status|that\s*is)\b"
+                match = re.search(wake_pattern, lower)
+                if match:
+                    detected = True
+                    command = text[match.end():].strip(" ,.?!")
+                else:
+                    # Fallback check against configured phrase list
+                    for phrase in self.wake_phrases:
+                        if phrase in lower:
+                            detected = True
+                            idx = lower.find(phrase) + len(phrase)
+                            command = text[idx:].strip(" ,.?!")
+                            break
 
                 if detected:
                     self._last_trigger_time = now

@@ -38,7 +38,7 @@ def test_reminders_crud():
 def test_schedule_crud():
     """Verify adding events and reading today's schedule."""
     sched_tool = CreateScheduleItemTool()
-    res = sched_tool.execute(title="Team Sync", start_time="3 PM", end_time="4 PM")
+    res = sched_tool.execute(title="Team Sync", start_time="today 11:59 PM", end_time="today 11:59 PM")
     assert res.success is True
     assert "Team Sync" in res.message
 
