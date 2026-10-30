@@ -87,9 +87,22 @@ def run_voice_loop() -> None:
 
     def on_wake(command_text: str):
         if not command_text.strip():
-            tts.speak("Yes, boss? I'm listening.")
+            try:
+                tts.stop()
+            except Exception:
+                pass
+
+            # Play modern Siri-style dual activation chime
+            try:
+                import winsound
+                winsound.Beep(880, 80)
+                time.sleep(0.03)
+                winsound.Beep(1320, 140)
+            except Exception:
+                pass
+
             stt = get_stt_provider()
-            command_text = stt.listen_and_transcribe(timeout=5) or ""
+            command_text = stt.listen_and_transcribe(timeout=6, phrase_time_limit=12) or ""
 
         if command_text.strip():
             logger.info(f"Processing voice command: '{command_text}'")

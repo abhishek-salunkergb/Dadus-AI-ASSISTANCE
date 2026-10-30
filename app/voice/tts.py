@@ -1,6 +1,7 @@
 """Text-to-Speech (TTS) provider abstractions and implementations for DADUS."""
 from abc import ABC, abstractmethod
 import os
+import time
 import threading
 import logging
 from typing import Optional
@@ -146,12 +147,13 @@ class OpenAITTS(BaseTTS):
             client = OpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
             audio_dir = settings.DATA_DIR / "audio"
             audio_dir.mkdir(parents=True, exist_ok=True)
-            out_path = destination_path or str(audio_dir / f"openai_{os.getpid()}.mp3")
+            out_path = destination_path or str(audio_dir / f"openai_{os.getpid()}_{int(time.time()*1000)}.wav")
 
             response = client.audio.speech.create(
                 model=self.model,
                 voice=self.voice,
-                input=text
+                input=text,
+                response_format="wav"
             )
             response.stream_to_file(out_path)
             return out_path

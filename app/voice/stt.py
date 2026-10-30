@@ -55,8 +55,10 @@ class SpeechRecognitionSTT(BaseSTT):
         import speech_recognition as sr
         try:
             with sr.Microphone() as source:
-                logger.info("Adjusting for ambient noise...")
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                if not getattr(self, "_calibrated", False):
+                    logger.info("Calibrating microphone for ambient noise...")
+                    self.recognizer.adjust_for_ambient_noise(source, duration=0.3)
+                    self._calibrated = True
                 logger.info("Listening for voice...")
                 audio = self.recognizer.listen(
                     source,
