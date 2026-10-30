@@ -41,6 +41,7 @@ def mock_external_side_effects(monkeypatch):
     monkeypatch.setattr(webbrowser, "open", lambda *args, **kwargs: True)
     if hasattr(os, "startfile"):
         monkeypatch.setattr(os, "startfile", lambda *args, **kwargs: None)
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", None)
 
 @pytest.fixture
 def test_agent():
