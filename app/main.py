@@ -1,6 +1,13 @@
 """Main application entry point for DADUS Personal AI Assistant."""
 import sys
 import os
+from pathlib import Path
+
+# Ensure project root is in sys.path so running directly via `python app/main.py` works seamlessly
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import argparse
 import logging
 import threading
@@ -102,6 +109,7 @@ def run_voice_loop() -> None:
 def main() -> None:
     """Parse arguments and start DADUS components."""
     parser = argparse.ArgumentParser(description="DADUS Personal AI Assistant")
+    parser.add_argument("--mode", choices=["web", "voice", "cli"], default=None, help="Operating mode: web, voice, or cli")
     parser.add_argument("--cli", action="store_true", help="Start in interactive CLI mode")
     parser.add_argument("--voice", action="store_true", help="Start continuous voice wake-word monitoring")
     parser.add_argument("--window", action="store_true", help="Launch in dedicated desktop window")
@@ -119,7 +127,7 @@ def main() -> None:
     logger.info(f"Initialized {settings.PRODUCT_NAME} v1.0.0")
 
     # 2. Start API Server in background thread if CLI or voice mode requested
-    if args.cli:
+    if args.cli or args.mode == "cli":
         server_thread = threading.Thread(
             target=start_api_server,
             args=(args.host, args.port),
@@ -129,7 +137,7 @@ def main() -> None:
         run_cli_mode()
         return
 
-    if args.voice:
+    if args.voice or args.mode == "voice":
         server_thread = threading.Thread(
             target=start_api_server,
             args=(args.host, args.port),
