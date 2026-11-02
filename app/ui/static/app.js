@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btn.dataset.tab === 'schedule') loadSchedule();
       if (btn.dataset.tab === 'memory') loadMemories();
       if (btn.dataset.tab === 'audit') loadAuditLogs();
+      if (btn.dataset.tab === 'mcp') loadMcpTools();
     });
   });
 
@@ -211,11 +212,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Push to Talk / Mic Button
+  // Push to Talk / Mic Button - Real-Time Streaming Speech Recognition (like ChatGPT Voice)
+  let speechRecognizer = null;
+  let isRecording = false;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+    speechRecognizer = new SpeechRecognition();
+    speechRecognizer.continuous = false;
+    speechRecognizer.interimResults = true;
+    speechRecognizer.lang = 'en-US';
+
+    speechRecognizer.onstart = () => {
+      isRecording = true;
+      micBtn.classList.add('recording');
+      voiceWave.classList.remove('hidden');
+      setStatus('Listening to your voice...', 'status-listening');
+    };
+
+    speechRecognizer.onresult = (event) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      // Stream words live into the input box as you speak!
+      userInput.value = finalTranscript || interimTranscript;
+
+      if (finalTranscript.trim()) {
+        speechRecognizer.stop();
+        sendMessage(finalTranscript.trim());
+      }
+    };
+
+    speechRecognizer.onerror = (event) => {
+      console.warn('Speech recognition status:', event.error);
+      micBtn.classList.remove('recording');
+      voiceWave.classList.add('hidden');
+      setStatus('Ready', 'status-ready');
+      isRecording = false;
+    };
+
+    speechRecognizer.onend = () => {
+      micBtn.classList.remove('recording');
+      voiceWave.classList.add('hidden');
+      setStatus('Ready', 'status-ready');
+      isRecording = false;
+    };
+  }
+
   micBtn.addEventListener('click', async () => {
+    if (speechRecognizer) {
+      if (isRecording) {
+        speechRecognizer.stop();
+      } else {
+        userInput.value = '';
+        try {
+          speechRecognizer.start();
+        } catch (e) {
+          console.warn('Speech recognition start failed, restarting:', e);
+        }
+      }
+      return;
+    }
+
+    // Hardware/Backend fallback if browser has no native speech API
     micBtn.classList.add('recording');
     voiceWave.classList.remove('hidden');
-    setStatus('Listening...', 'status-listening');
+    setStatus('Listening (Hardware Mic)...', 'status-listening');
 
     try {
       const resp = await fetch('/api/voice/listen', { method: 'POST' });
@@ -416,6 +487,69 @@ document.addEventListener('DOMContentLoaded', () => {
       tbody.innerHTML = '<tr><td colspan="6" class="loading-item">Failed to load logs.</td></tr>';
     }
   }
+
+  // MCP Tool Management
+  let cachedMcpTools = [];
+  async function loadMcpTools() {
+    const grid = document.getElementById('mcpToolsGrid');
+    const badge = document.getElementById('mcpToolCountBadge');
+    if (!grid) return;
+
+    try {
+      const resp = await fetch('/api/mcp/tools');
+      const data = await resp.json();
+      cachedMcpTools = data.tools || [];
+      if (badge) badge.textContent = `${cachedMcpTools.length} Tools Available`;
+      renderMcpTools(cachedMcpTools);
+    } catch (err) {
+      console.error('Error fetching MCP tools:', err);
+      grid.innerHTML = '<div class="loading-item" style="color: #ef4444;">Failed to load MCP tool registry.</div>';
+    }
+  }
+
+  function renderMcpTools(tools) {
+    const grid = document.getElementById('mcpToolsGrid');
+    if (!grid) return;
+    if (!tools || tools.length === 0) {
+      grid.innerHTML = '<div class="loading-item">No tools found matching filter.</div>';
+      return;
+    }
+
+    grid.innerHTML = tools.map(tool => {
+      const schema = tool.inputSchema || {};
+      const props = Object.keys(schema.properties || {});
+      const paramStr = props.length > 0 ? props.join(', ') : 'none';
+      return `
+        <div class="mcp-tool-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+              <strong style="font-size: 0.95rem; color: var(--cyan); font-family: monospace;">${escapeHtml(tool.name)}</strong>
+              <span style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 500;">Approved</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">${escapeHtml(tool.description || 'No description provided.')}</p>
+          </div>
+          <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted);">
+            <span>Params: <code style="color: var(--text-primary);">${escapeHtml(paramStr)}</code></span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Filter MCP Tools
+  document.getElementById('mcpSearchInput')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (!query) {
+      renderMcpTools(cachedMcpTools);
+      return;
+    }
+    const filtered = cachedMcpTools.filter(t => 
+      t.name.toLowerCase().includes(query) || (t.description && t.description.toLowerCase().includes(query))
+    );
+    renderMcpTools(filtered);
+  });
+
+  document.getElementById('refreshMcpBtn')?.addEventListener('click', loadMcpTools);
 
   // Refresh buttons
   document.getElementById('refreshScheduleBtn')?.addEventListener('click', loadSchedule);

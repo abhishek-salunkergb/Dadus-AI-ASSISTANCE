@@ -41,6 +41,10 @@
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           <span>Audit Logs</span>
         </button>
+        <button class="nav-item" data-tab="mcp">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+          <span>MCP Protocol</span>
+        </button>
       </nav>
 
       <div class="sidebar-status">
@@ -234,6 +238,47 @@
                 <tr><td colspan="6" class="loading-item">Loading audit history...</td></tr>
               </tbody>
             </table>
+          </div>
+      <!-- TAB 5: MCP Protocol -->
+      <section id="tab-mcp" class="tab-pane">
+        <div class="tab-header">
+          <div>
+            <h2>Model Context Protocol (MCP) Integration</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">
+              Standards-compliant JSON-RPC 2.0 interface connecting DADUS tools to external AI clients.
+            </p>
+          </div>
+          <button id="refreshMcpBtn" class="action-btn">Refresh Tools</button>
+        </div>
+
+        <div class="mcp-status-bar" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Status</div>
+            <div style="font-size: 1.1rem; font-weight: 600; color: #10b981; display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+              <span class="status-dot online"></span> Connected & Active
+            </div>
+          </div>
+          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Protocol Version</div>
+            <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-top: 4px;">2024-11-05 (JSON-RPC 2.0)</div>
+          </div>
+          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Exposed Tools</div>
+            <div id="mcpToolCountBadge" style="font-size: 1.1rem; font-weight: 600; color: var(--cyan); margin-top: 4px;">29 Tools Available</div>
+          </div>
+          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Endpoints</div>
+            <div style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-top: 6px;">POST /api/mcp | stdio</div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="font-size: 1rem; font-weight: 600;">Approved MCP Tools Registry</h3>
+            <input type="text" id="mcpSearchInput" placeholder="Filter MCP tools..." style="padding: 6px 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 220px;" />
+          </div>
+          <div id="mcpToolsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+            <div class="loading-item">Loading MCP tool registry...</div>
           </div>
         </div>
       </section>

@@ -296,6 +296,47 @@ def register_connected_device(device_data: Dict[str, Any]):
     registered = device_manager.register_device(dev)
     return {"success": True, "device": registered.dict()}
 
+# ==========================================
+# Model Context Protocol (MCP) Endpoints
+# ==========================================
+@app.post("/api/mcp")
+def handle_mcp_request(request: Dict[str, Any]):
+    """Standard Model Context Protocol (MCP) JSON-RPC 2.0 endpoint."""
+    from app.mcp.server import mcp_server
+    return mcp_server.handle_request(request)
+
+@app.get("/api/mcp/tools")
+def get_mcp_tools():
+    """List all registered MCP tools and their schemas."""
+    from app.mcp.server import mcp_server
+    res = mcp_server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    return res.get("result", {})
+
+@app.get("/api/mcp/info")
+def get_mcp_info():
+    """Get MCP server protocol status and metadata."""
+    from app.mcp.server import mcp_server
+    res = mcp_server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+    return res.get("result", {})
+
+# ==========================================
+# Voice Processing Endpoints
+# ==========================================
+@app.post("/api/voice/listen")
+def voice_listen():
+    """Capture speech from backend microphone and process command."""
+    stt = get_stt_provider()
+    transcription = stt.listen_and_transcribe(timeout=5, phrase_time_limit=10)
+    if not transcription or not transcription.strip():
+        return {"success": False, "message": "No speech detected"}
+
+    resp = dadus_agent.process_input(transcription, session_id="voice_ui")
+    return {
+        "success": True,
+        "transcription": transcription,
+        "response": resp.to_dict()
+    }
+
 # Mount static files for UI if directory exists
 static_dir = Path(__file__).resolve().parent.parent / "ui" / "static"
 if static_dir.exists():

@@ -75,3 +75,29 @@ def test_api_confirm_endpoint(client):
     assert conf_resp.status_code == 200
     assert conf_resp.json()["status"] == "rejected"
     assert "Cancelled" in conf_resp.json()["message"]
+
+def test_api_mcp_endpoints(client):
+    """Verify HTTP Model Context Protocol (MCP) endpoints."""
+    # Test MCP initialize
+    init_resp = client.post("/api/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+    assert init_resp.status_code == 200
+    idata = init_resp.json()
+    assert idata.get("result", {}).get("serverInfo", {}).get("name") == "dadus-mcp-server"
+
+    # Test MCP tools list
+    tools_resp = client.get("/api/mcp/tools")
+    assert tools_resp.status_code == 200
+    tdata = tools_resp.json()
+    assert "tools" in tdata
+    assert len(tdata["tools"]) >= 25
+
+    # Test MCP tool call
+    call_resp = client.post("/api/mcp", json={
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {"name": "get_current_time", "arguments": {}}
+    })
+    assert call_resp.status_code == 200
+    cdata = call_resp.json()
+    assert cdata.get("result", {}).get("isError") is False

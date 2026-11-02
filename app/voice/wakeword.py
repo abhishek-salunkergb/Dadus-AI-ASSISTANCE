@@ -31,6 +31,9 @@ class KeywordWakeWord(BaseWakeWord):
 
     def __init__(self, stt_provider: Optional[BaseSTT] = None):
         self.stt = stt_provider or get_stt_provider()
+        # Fast local STT for continuous wake-word detection to eliminate cloud network roundtrip delay
+        from app.voice.stt import SpeechRecognitionSTT
+        self.wake_stt = SpeechRecognitionSTT(language="en-US")
         self.wake_phrases = ["hey dadus", "dadus", "ok dadus", "hi dadus"]
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -55,8 +58,8 @@ class KeywordWakeWord(BaseWakeWord):
 
         while self._running:
             try:
-                # Capture speech segment
-                text = self.stt.listen_and_transcribe(timeout=3, phrase_time_limit=8)
+                # Capture speech segment using fast local listener
+                text = self.wake_stt.listen_and_transcribe(timeout=2, phrase_time_limit=6)
                 if not text:
                     continue
 
