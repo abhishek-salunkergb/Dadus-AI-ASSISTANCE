@@ -6,7 +6,7 @@ from app.database.database import init_db, get_db_context
 from app.database.models import Contact
 from app.agent.agent import DadusAgent
 from app.agent.router import intent_router
-from app.tools.contacts import CallContactTool, find_matching_contacts
+from app.tools.contacts import CallContactTool, AddContactTool, DeleteContactTool, ImportContactsTool, find_matching_contacts
 
 @pytest.fixture(autouse=True)
 def setup_test_db():
@@ -121,3 +121,50 @@ def test_clarification_cancellation():
     res = agent.process_input("cancel", session_id="cancel_session")
     assert "cancelled" in res.text.lower()
     assert session.pending_clarification is None
+
+
+def test_delete_contact_tool():
+    add_tool = AddContactTool()
+    add_tool.execute(name="Test User", phone="+1 555 123 4567")
+
+    del_tool = DeleteContactTool()
+    res = del_tool.execute(contact_name_or_id="Test User")
+    assert res.success is True
+    assert "Deleted Test User" in res.message
+
+    with get_db_context() as db:
+        remaining = db.query(Contact).filter(Contact.name == "Test User").first()
+        assert remaining is None
+
+
+def test_import_contacts_vcf(tmp_path):
+    vcf_content = (
+        "BEGIN:VCARD\n"
+        "VERSION:3.0\n"
+        "FN:Elon Musk\n"
+        "TEL:+1 555 999 8888\n"
+        "EMAIL:elon@x.com\n"
+        "END:VCARD\n"
+        "BEGIN:VCARD\n"
+        "VERSION:3.0\n"
+        "FN:Satya Nadella\n"
+        "TEL:+1 555 777 6666\n"
+        "EMAIL:satya@microsoft.com\n"
+        "END:VCARD\n"
+    )
+    vcf_file = tmp_path / "contacts.vcf"
+    vcf_file.write_text(vcf_content, encoding="utf-8")
+
+    tool = ImportContactsTool()
+    res = tool.execute(file_path=str(vcf_file))
+    assert res.success is True
+    assert res.data["imported_count"] == 2
+
+    with get_db_context() as db:
+        elon = db.query(Contact).filter(Contact.name == "Elon Musk").first()
+        satya = db.query(Contact).filter(Contact.name == "Satya Nadella").first()
+        assert elon is not None
+        assert elon.phone == "+1 555 999 8888"
+        assert satya is not None
+        assert satya.email == "satya@microsoft.com"
+

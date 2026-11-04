@@ -18,13 +18,23 @@ from app.tools.system import (
 )
 from app.tools.files import SearchFilesTool, DeleteFileOrFolderTool
 from app.tools.reminders import CreateReminderTool, ListRemindersTool
+from app.tools.alarms import SetAlarmTool, ListAlarmsTool, CancelAlarmTool, ModifyAlarmTool
 from app.tools.schedule import GetTodayScheduleTool, CreateScheduleItemTool
 from app.tools.memory_tools import StoreMemoryTool, ForgetMemoryTool
 from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, DeleteTaskTool, GetDailyBriefingTool
 from app.tools.media import PauseMusicTool, ResumeMusicTool, SkipMusicTrackTool, AdjustVolumeTool
 from app.tools.projects import OpenFolderTool, FindProjectAndOpenTool, OpenProjectGitHubTool
-from app.tools.contacts import CallContactTool, MessageContactTool, ListContactsTool, AddContactTool
-from app.tools.gmail import OpenGmailTool, FindRecruiterEmailsTool, OpenEmailThreadTool
+from app.tools.contacts import CallContactTool, MessageContactTool, ListContactsTool, AddContactTool, DeleteContactTool, ImportContactsTool
+from app.tools.camera import OpenCameraTool, RecordVideoTool
+from app.tools.gallery import OpenGalleryTool, ShowRecentPhotosTool
+from app.tools.gmail import (
+    OpenGmailTool,
+    FindRecruiterEmailsTool,
+    OpenEmailThreadTool,
+    ReadLatestEmailTool,
+    DraftEmailTool,
+    SendEmailTool
+)
 from app.tools.logs import CleanLogsTool
 
 def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
@@ -35,6 +45,8 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         MessageContactTool(),
         ListContactsTool(),
         AddContactTool(),
+        DeleteContactTool(),
+        ImportContactsTool(),
         # Desktop Applications
         OpenAppTool(),
         CloseAppTool(),
@@ -63,7 +75,11 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         OpenFolderTool(),
         FindProjectAndOpenTool(),
         OpenProjectGitHubTool(),
-        # Reminders & Schedule
+        # Alarms, Reminders & Schedule
+        SetAlarmTool(),
+        ListAlarmsTool(),
+        CancelAlarmTool(),
+        ModifyAlarmTool(),
         CreateReminderTool(),
         ListRemindersTool(),
         GetTodayScheduleTool(),
@@ -81,6 +97,14 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         OpenGmailTool(),
         FindRecruiterEmailsTool(),
         OpenEmailThreadTool(),
+        ReadLatestEmailTool(),
+        DraftEmailTool(),
+        SendEmailTool(),
+        # Camera & Gallery
+        OpenCameraTool(),
+        RecordVideoTool(),
+        OpenGalleryTool(),
+        ShowRecentPhotosTool(),
         # Safe Log & Maintenance
         CleanLogsTool()
     ]

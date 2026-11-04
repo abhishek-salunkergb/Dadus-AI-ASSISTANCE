@@ -32,6 +32,12 @@ class Capability(str, Enum):
     BACKGROUND_OPERATION = "background_operation"
     STARTUP_BOOT = "startup_boot"
     EXTERNAL_SERVICES = "external_services"
+    CONTACTS_ACCESS = "contacts_access"
+    PHONE_CALLING = "phone_calling"
+    CAMERA_ACCESS = "camera_access"
+    PHOTOS_GALLERY = "photos_gallery"
+    GMAIL_ACCOUNT = "gmail_account"
+    CALENDAR_ACCESS = "calendar_access"
 
 
 CAPABILITY_METADATA: Dict[str, Dict[str, Any]] = {
@@ -101,6 +107,42 @@ CAPABILITY_METADATA: Dict[str, Dict[str, Any]] = {
         "category": "Windows Lifecycle",
         "default": False,
     },
+    Capability.CONTACTS_ACCESS.value: {
+        "name": "Contacts Access",
+        "description": "Allows DADUS to view, search, and manage address book contacts",
+        "category": "Personal Data & Contacts",
+        "default": True,
+    },
+    Capability.PHONE_CALLING.value: {
+        "name": "Phone & Calling",
+        "description": "Allows DADUS to initiate voice phone calls via system dialer",
+        "category": "Personal Data & Contacts",
+        "default": True,
+    },
+    Capability.CAMERA_ACCESS.value: {
+        "name": "Camera Access",
+        "description": "Allows DADUS to access the camera hardware and record video",
+        "category": "Hardware & Media",
+        "default": True,
+    },
+    Capability.PHOTOS_GALLERY.value: {
+        "name": "Photos & Gallery",
+        "description": "Allows DADUS to access device pictures and recent photo libraries",
+        "category": "Hardware & Media",
+        "default": True,
+    },
+    Capability.GMAIL_ACCOUNT.value: {
+        "name": "Gmail Account Access",
+        "description": "Allows DADUS to read, search, and draft emails from authorized Gmail",
+        "category": "External Accounts",
+        "default": True,
+    },
+    Capability.CALENDAR_ACCESS.value: {
+        "name": "Calendar & Schedule",
+        "description": "Allows DADUS to view and schedule calendar events",
+        "category": "Productivity",
+        "default": True,
+    },
 }
 
 TOOL_TO_CAPABILITY: Dict[str, str] = {
@@ -138,12 +180,31 @@ TOOL_TO_CAPABILITY: Dict[str, str] = {
     # Screenshots
     "take_screenshot": Capability.SCREEN_CAPTURE.value,
     
-    # External services
-    "find_recruiter_emails": Capability.EXTERNAL_SERVICES.value,
-    "open_email_thread": Capability.EXTERNAL_SERVICES.value,
-    "open_gmail": Capability.EXTERNAL_SERVICES.value,
-    "call_contact": Capability.EXTERNAL_SERVICES.value,
-    "message_contact": Capability.EXTERNAL_SERVICES.value,
+    # Camera and Gallery
+    "open_camera": Capability.CAMERA_ACCESS.value,
+    "record_video": Capability.CAMERA_ACCESS.value,
+    "open_gallery": Capability.PHOTOS_GALLERY.value,
+    "show_recent_photos": Capability.PHOTOS_GALLERY.value,
+
+    # Contacts & Calling
+    "call_contact": Capability.PHONE_CALLING.value,
+    "message_contact": Capability.CONTACTS_ACCESS.value,
+    "list_contacts": Capability.CONTACTS_ACCESS.value,
+    "add_contact": Capability.CONTACTS_ACCESS.value,
+    "delete_contact": Capability.CONTACTS_ACCESS.value,
+    "import_contacts": Capability.CONTACTS_ACCESS.value,
+
+    # Gmail Account vs Browser
+    "find_recruiter_emails": Capability.GMAIL_ACCOUNT.value,
+    "read_latest_email": Capability.GMAIL_ACCOUNT.value,
+    "draft_email": Capability.GMAIL_ACCOUNT.value,
+    "send_email": Capability.GMAIL_ACCOUNT.value,
+    "open_email_thread": Capability.BROWSER_AUTOMATION.value,
+    "open_gmail": Capability.BROWSER_AUTOMATION.value,
+
+    # Calendar & Schedule
+    "get_today_schedule": Capability.CALENDAR_ACCESS.value,
+    "create_schedule_item": Capability.CALENDAR_ACCESS.value,
 }
 
 

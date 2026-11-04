@@ -145,6 +145,10 @@ class ToolRegistry:
             return "Boss, this will shut down your computer. Should I proceed?"
         if tool_name == "restart_system":
             return "Boss, this will restart your computer. Should I proceed?"
+        if tool_name == "send_email":
+            to = args.get("to", "recipient")
+            subj = args.get("subject", "(no subject)")
+            return f"Boss, this will send an email to {to} with subject '{subj}'. Should I proceed with sending?"
         return f"Boss, executing '{tool_name}' requires your confirmation. Should I continue?"
 
     def _log_audit(

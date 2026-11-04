@@ -128,12 +128,88 @@ class IntentRouter:
             q = browser_and_search.group(1).strip(" .?!'\"")
             return PlannedToolCall(tool_name="search_web", arguments={"query": q}), None
 
+        # Alarms - List
+        if any(p in lower for p in ["list alarms", "show my alarms", "show alarms", "my alarms", "what alarms do i have", "check alarms", "do i have any alarms"]):
+            return PlannedToolCall(tool_name="list_alarms", arguments={"status": "scheduled"}), None
+
+        # Alarms - Cancel
+        if any(p in lower for p in ["cancel all alarms", "delete all alarms", "clear all alarms", "turn off all alarms"]):
+            return PlannedToolCall(tool_name="cancel_alarm", arguments={"cancel_all": True}), None
+
+        cancel_alarm_match = re.search(r"\b(?:cancel|turn off|stop|delete|remove|clear)\s+(?:the\s+|my\s+)?alarm(?:\s+(?:for|at)\s+(.+))?", clean, re.IGNORECASE)
+        if cancel_alarm_match:
+            t_arg = cancel_alarm_match.group(1).strip(" .?!'\"") if cancel_alarm_match.group(1) else None
+            return PlannedToolCall(tool_name="cancel_alarm", arguments={"time": t_arg}), None
+
+        # Alarms - Set / Wake me up
+        set_alarm_match = re.search(r"\b(?:set|schedule|create)\s+(?:an?\s+)?alarm(?:\s+for me)?(?:\s+(?:for|at)\s+(.+))?", clean, re.IGNORECASE)
+        if set_alarm_match:
+            time_raw = (set_alarm_match.group(1) or "").strip(" .?!'\"")
+            return PlannedToolCall(tool_name="set_alarm", arguments={"time": time_raw}), None
+
+        wake_match = re.search(r"\bwake me up(?:\s+tomorrow)?(?:\s+at|\s+for|\s+in)?\s+(.+)", clean, re.IGNORECASE)
+        if wake_match:
+            time_raw = wake_match.group(1).strip(" .?!'\"")
+            if "tomorrow" in lower and "tomorrow" not in time_raw.lower():
+                time_raw = f"tomorrow at {time_raw}"
+            return PlannedToolCall(tool_name="set_alarm", arguments={"time": time_raw}), None
+
+        # Camera & video operations
+        if any(p in lower for p in ["record a video", "record video", "take a video", "start recording video"]):
+            return PlannedToolCall(tool_name="record_video", arguments={}), None
+
+        if re.search(r"\b(?:open|launch)\s+(?:the\s+)?camera(?:\s+and\s+(?:take|snap|shoot)\s+(?:a\s+)?(?:picture|photo))?\b", lower) or lower in ["open camera", "open the camera", "take a picture", "take a photo", "capture a photo"]:
+            return PlannedToolCall(tool_name="open_camera", arguments={"mode": "photo"}), None
+
+        # Gallery & photo operations
+        if any(p in lower for p in ["show my recent photos", "show recent photos", "recent photos", "my recent photos", "show my photos", "show recent pictures"]):
+            return PlannedToolCall(tool_name="show_recent_photos", arguments={"limit": 5}), None
+
+        if any(p in lower for p in ["open my gallery", "open gallery", "open photos", "open my photos", "my gallery", "open picture library", "open my pictures"]):
+            return PlannedToolCall(tool_name="open_gallery", arguments={}), None
+
+        # Email operations
+        if any(p in lower for p in ["read my latest email", "read latest email", "check my latest email", "check my email", "what is my latest email", "latest email"]):
+            return PlannedToolCall(tool_name="read_latest_email", arguments={}), None
+
+        if any(p in lower for p in ["find my latest recruiter email", "find recruiter email", "find recruiter emails", "recruiter emails", "recruiter email"]):
+            return PlannedToolCall(tool_name="find_recruiter_emails", arguments={}), None
+
+        if any(p in lower for p in ["open gmail", "launch gmail", "go to gmail"]):
+            return PlannedToolCall(tool_name="open_gmail", arguments={}), None
+
+        # Calendar operations
+        if any(p in lower for p in ["create a calendar event", "create calendar event", "add calendar event", "add event to calendar", "new calendar event"]):
+            return PlannedToolCall(tool_name="create_schedule_item", arguments={"title": "New Event", "start_time": "tomorrow at 10 AM"}), None
+
+        # Music application
+        if any(p in lower for p in ["open my music application", "open music app", "open my music app", "open music"]):
+            from app.memory.memory import memory_store
+            pref = memory_store.get_preferred_music_app() or "Spotify"
+            return PlannedToolCall(tool_name="open_app", arguments={"app_name": pref}), None
+
+        # Downloaded files & PDFs
+        pdf_match = re.search(r"\b(?:find|locate|search|open)\s+(?:my\s+)?downloaded\s+(?:pdf|file)\b|\bfind\s+(?:my\s+)?downloaded\s+pdf\b", lower)
+        if pdf_match or "downloaded pdf" in lower:
+            return PlannedToolCall(tool_name="search_files", arguments={"query": "latest .pdf"}), None
+
+        # Find contact
+        find_contact_match = re.search(r"\b(?:find|search|lookup|look up)\s+(?:my\s+)?contact\s+([a-zA-Z\s]+)", clean, re.IGNORECASE)
+        if find_contact_match:
+            cand_name = find_contact_match.group(1).strip(" .?!'\"")
+            from app.tools.contacts import find_matching_contacts
+            matches = find_matching_contacts(cand_name)
+            if matches:
+                return PlannedToolCall(tool_name="call_contact", arguments={"contact_name": cand_name}), None
+            else:
+                return None, f"Boss, I couldn't find '{cand_name}' in your contacts. Would you like me to add them?"
+
         # Direct application launches
         open_direct = re.match(r"^(?:open|launch|start|bring up)\s+(?:the\s+|my\s+|google\s+)?([a-zA-Z0-9\s\.\-_]+)$", clean, re.IGNORECASE)
         if open_direct:
             cand = open_direct.group(1).strip(" .?!'\"")
             cand_clean = re.sub(r"\b(please|for me|app|application)\b", "", cand, flags=re.IGNORECASE).strip(" .?!'\"")
-            if cand_clean and not any(w in cand_clean.lower() for w in ["and", "with", "project", "github", "task", "file", "reminder", "music", "song", "camera", "briefing", "coding", "use for"]):
+            if cand_clean and not any(w in cand_clean.lower() for w in ["and", "with", "project", "github", "task", "file", "reminder", "alarm", "music", "song", "camera", "gallery", "photo", "picture", "video", "briefing", "coding", "use for", "downloaded", "contact"]):
                 if cand_clean.lower() in ["code editor", "editor", "ide"]:
                     cand_clean = "Visual Studio Code"
                 elif cand_clean.lower() in ["browser", "web browser"]:
@@ -262,7 +338,29 @@ class IntentRouter:
         if any(p in lower for p in ["increase the volume", "volume higher", "turn it up", "turn up the volume", "louder", "volume up"]):
             return PlannedToolCall(tool_name="adjust_volume", arguments={"delta": 10, "direction": "higher"}), None
 
-        # Tasks, briefings & reminders
+        # Alarms, Tasks, briefings & reminders
+        if any(p in lower for p in ["list alarms", "show my alarms", "show alarms", "my alarms", "what alarms do i have", "check alarms", "do i have any alarms"]):
+            return PlannedToolCall(tool_name="list_alarms", arguments={"status": "scheduled"}), None
+
+        if any(p in lower for p in ["cancel all alarms", "delete all alarms", "clear all alarms", "turn off all alarms"]):
+            return PlannedToolCall(tool_name="cancel_alarm", arguments={"cancel_all": True}), None
+
+        cancel_alarm_match = re.search(r"\b(?:cancel|turn off|stop|delete|remove|clear)\s+(?:the\s+|my\s+)?alarm(?:\s+(?:for|at)\s+(.+))?", clean, re.IGNORECASE)
+        if cancel_alarm_match:
+            t_arg = cancel_alarm_match.group(1).strip(" .?!'\"") if cancel_alarm_match.group(1) else None
+            return PlannedToolCall(tool_name="cancel_alarm", arguments={"time": t_arg}), None
+
+        set_alarm_match = re.search(r"\b(?:set|schedule|create)\s+(?:an?\s+)?alarm(?:\s+for me)?(?:\s+(?:for|at)\s+(.+))?", clean, re.IGNORECASE)
+        if set_alarm_match:
+            time_raw = (set_alarm_match.group(1) or "").strip(" .?!'\"")
+            return PlannedToolCall(tool_name="set_alarm", arguments={"time": time_raw}), None
+
+        wake_match = re.search(r"\bwake me up(?:\s+tomorrow)?(?:\s+at|\s+for|\s+in)?\s+(.+)", clean, re.IGNORECASE)
+        if wake_match:
+            time_raw = wake_match.group(1).strip(" .?!'\"")
+            if "tomorrow" in lower and "tomorrow" not in time_raw.lower():
+                time_raw = f"tomorrow at {time_raw}"
+            return PlannedToolCall(tool_name="set_alarm", arguments={"time": time_raw}), None
         if any(p in lower for p in ["morning briefing", "daily briefing", "give me my briefing", "my briefing"]):
             return PlannedToolCall(tool_name="get_daily_briefing", arguments={}), None
 
@@ -354,6 +452,23 @@ class IntentRouter:
 
         if any(p in lower for p in ["list contacts", "show contacts", "my contacts", "who are my contacts", "all contacts"]):
             return PlannedToolCall(tool_name="list_contacts", arguments={}), None
+
+        # Add contact
+        add_contact_match = re.search(r"\b(?:add|create|save)\s+contact\s+([a-zA-Z\s]+?)\s+(?:with\s+)?(?:phone|number|mobile)?\s*([+0-9\s\-]{7,20})", clean, re.IGNORECASE)
+        if add_contact_match:
+            c_name = add_contact_match.group(1).strip()
+            c_phone = add_contact_match.group(2).strip()
+            return PlannedToolCall(tool_name="add_contact", arguments={"name": c_name, "phone": c_phone}), None
+
+        # Delete contact
+        del_contact_match = re.search(r"\b(?:delete|remove)\s+contact\s+(.+)", clean, re.IGNORECASE)
+        if del_contact_match:
+            c_name = del_contact_match.group(1).strip(" .?!'\"")
+            return PlannedToolCall(tool_name="delete_contact", arguments={"contact_name_or_id": c_name}), None
+
+        # Import contacts
+        if any(p in lower for p in ["import contacts", "import my contacts", "load contacts"]):
+            return PlannedToolCall(tool_name="import_contacts", arguments={}), None
 
         # Application lifecycle
         open_app_match = re.search(r"\b(?:open|launch|start|run|bring up)\s+(?:the\s+|my\s+|google\s+)?([a-zA-Z0-9\s\.\-_]+)", clean, re.IGNORECASE)

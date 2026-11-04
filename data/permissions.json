@@ -9,5 +9,11 @@
   "external_services": true,
   "microphone_wakeword": true,
   "background_operation": true,
-  "startup_boot": false
+  "startup_boot": false,
+  "contacts_access": true,
+  "phone_calling": true,
+  "camera_access": true,
+  "photos_gallery": true,
+  "gmail_account": true,
+  "calendar_access": true
 }

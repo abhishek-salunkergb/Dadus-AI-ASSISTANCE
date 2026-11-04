@@ -49,22 +49,6 @@ def init_db() -> None:
         except Exception:
             pass
 
-    # Seed default contacts if table is empty
-    with SessionLocal() as db_session:
-        try:
-            from app.database.models import Contact
-            if db_session.query(Contact).count() == 0:
-                defaults = [
-                    Contact(name="Abhishek Salunke", phone="+91 98765 43210", email="abhishek.salunke@example.com", relationship="friend"),
-                    Contact(name="Abhishek Chavhan", phone="+91 98765 43211", email="abhishek.chavhan@example.com", relationship="colleague"),
-                    Contact(name="Abhishek Patil", phone="+91 98765 43212", email="abhishek.patil@example.com", relationship="friend"),
-                    Contact(name="Rahul Sharma", phone="+91 98765 43213", email="rahul.sharma@example.com", relationship="colleague"),
-                    Contact(name="Priya Patel", phone="+91 98765 43214", email="priya.patel@example.com", relationship="family"),
-                ]
-                db_session.add_all(defaults)
-                db_session.commit()
-        except Exception:
-            db_session.rollback()
 
 @contextmanager
 def get_db_context() -> Generator[Session, None, None]:

@@ -18,8 +18,9 @@ from app.agent.agent import dadus_agent, AgentResponse
 from app.tools.registry import tool_registry
 from app.security.confirmations import confirmation_manager
 from app.database.database import get_db, init_db
-from app.database.models import Reminder, ScheduleItem, MemoryItem, AuditLog, TaskItem
+from app.database.models import Reminder, ScheduleItem, MemoryItem, AuditLog, TaskItem, Alarm
 from app.productivity.reminder_daemon import reminder_daemon
+from app.productivity.alarm_daemon import alarm_daemon
 from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, GetDailyBriefingTool
 from app.voice.tts import get_tts_provider
 from contextlib import asynccontextmanager
@@ -38,11 +39,19 @@ async def lifespan(app: FastAPI):
         reminder_daemon.start()
     except Exception as ex:
         logger.warning(f"Could not start reminder daemon: {ex}")
+    try:
+        alarm_daemon.start()
+    except Exception as ex:
+        logger.warning(f"Could not start alarm daemon: {ex}")
     yield
     try:
         reminder_daemon.stop()
     except Exception as ex:
         logger.warning(f"Could not stop reminder daemon: {ex}")
+    try:
+        alarm_daemon.stop()
+    except Exception as ex:
+        logger.warning(f"Could not stop alarm daemon: {ex}")
 
 app = FastAPI(
     title="DADUS Personal AI Assistant API",
@@ -377,12 +386,14 @@ def set_autostart_status(payload: Dict[str, bool]):
     return {"success": success, "enabled": autostart_manager.is_autostart_enabled()}
 
 @app.get("/api/system/permissions")
+@app.get("/api/permissions")
 def get_system_permissions():
     """Retrieve full catalog of capability permissions and their current toggle states."""
     from app.security.permissions import permission_manager
     return permission_manager.get_all_permissions()
 
 @app.post("/api/system/permissions")
+@app.post("/api/permissions")
 def update_system_permissions(payload: Dict[str, Any]):
     """
     Update granular capability permissions (e.g. Device Lock toggle).
@@ -406,6 +417,22 @@ def update_system_permissions(payload: Dict[str, Any]):
         "message": "Permissions updated successfully",
         "permissions": permission_manager.get_all_permissions()
     }
+
+# ==========================================
+# Device Context & Capability Registry Endpoints
+# ==========================================
+@app.get("/api/device/info")
+def get_device_info_endpoint():
+    """Returns detected operating system, hardware devices, and connected accounts."""
+    from app.platform import platform_adapter
+    return {"success": True, "device": platform_adapter.get_device_info().to_dict()}
+
+@app.get("/api/device/capabilities")
+def get_device_capabilities_endpoint():
+    """Returns indexed applications and integration channels mapped by capability."""
+    from app.platform import capability_registry
+    return {"success": True, "capabilities": capability_registry.list_all_capabilities()}
+
 
 
 

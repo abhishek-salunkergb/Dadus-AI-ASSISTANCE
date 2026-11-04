@@ -497,6 +497,34 @@
                 </div>
               </div>
 
+              <div class="settings-card" id="deviceInfoCard">
+                <h3 class="settings-card-title">Connected Device & Hardware Profile</h3>
+                <div class="setting-item">
+                  <span class="setting-name">Operating System</span>
+                  <span class="setting-val" id="deviceInfoOs">Detecting...</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">CPU & Cores</span>
+                  <span class="setting-val" id="deviceInfoCpu">Detecting...</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Memory (RAM)</span>
+                  <span class="setting-val" id="deviceInfoMemory">Detecting...</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Camera Hardware</span>
+                  <span class="setting-val" id="deviceInfoCamera">Detecting...</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Bluetooth Controller</span>
+                  <span class="setting-val" id="deviceInfoBluetooth">Detecting...</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Power / Battery</span>
+                  <span class="setting-val" id="deviceInfoBattery">Detecting...</span>
+                </div>
+              </div>
+
               <div class="settings-card" style="grid-column: 1 / -1;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                   <h3 class="settings-card-title" style="margin-bottom:0;">Device Permissions & Capability Controls</h3>
@@ -597,6 +625,54 @@
                       <div class="permission-desc">Registers in Windows user registry to boot automatically with your computer</div>
                     </div>
                     <input type="checkbox" id="perm_startup_boot" class="perm-toggle" data-perm="startup_boot">
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Contacts Access</div>
+                      <div class="permission-desc">Allows DADUS to view, search, import, and manage address book contacts</div>
+                    </div>
+                    <input type="checkbox" id="perm_contacts_access" class="perm-toggle" data-perm="contacts_access" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Phone & Calling</div>
+                      <div class="permission-desc">Allows DADUS to initiate phone calls via system dialer protocol</div>
+                    </div>
+                    <input type="checkbox" id="perm_phone_calling" class="perm-toggle" data-perm="phone_calling" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Camera Access & Recording</div>
+                      <div class="permission-desc">Allows DADUS to launch native camera application and record video</div>
+                    </div>
+                    <input type="checkbox" id="perm_camera_access" class="perm-toggle" data-perm="camera_access" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Photos & Gallery</div>
+                      <div class="permission-desc">Allows DADUS to access photo library and scan recent pictures or screenshots</div>
+                    </div>
+                    <input type="checkbox" id="perm_photos_gallery" class="perm-toggle" data-perm="photos_gallery" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Gmail Account Access</div>
+                      <div class="permission-desc">Allows DADUS to query authorized Gmail messages, threads, and draft emails</div>
+                    </div>
+                    <input type="checkbox" id="perm_gmail_account" class="perm-toggle" data-perm="gmail_account" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Calendar & Schedules</div>
+                      <div class="permission-desc">Allows DADUS to view, schedule, and track calendar events and meetings</div>
+                    </div>
+                    <input type="checkbox" id="perm_calendar_access" class="perm-toggle" data-perm="calendar_access" checked>
                   </div>
                 </div>
 

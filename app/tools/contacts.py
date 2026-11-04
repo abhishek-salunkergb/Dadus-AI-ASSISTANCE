@@ -262,3 +262,151 @@ class AddContactTool(BaseTool):
                 message=f"Added {contact.name} ({contact.phone}) to your contacts, boss.",
                 data={"contact": contact.to_dict()}
             )
+
+
+# ==========================================
+# Tool: delete_contact
+# ==========================================
+class DeleteContactInput(BaseModel):
+    contact_name_or_id: str = Field(description="Name or ID of the contact to delete")
+
+class DeleteContactTool(BaseTool):
+    name = "delete_contact"
+    description = "Removes a contact from the address book."
+    permission_level = PermissionLevel.SAFE
+    args_schema = DeleteContactInput
+
+    def execute(self, contact_name_or_id: str) -> ToolResult:
+        with get_db_context() as db:
+            query = contact_name_or_id.strip()
+            target = None
+            if query.isdigit():
+                target = db.query(Contact).filter(Contact.id == int(query)).first()
+            if not target:
+                matches = find_matching_contacts(query)
+                if matches:
+                    target = db.query(Contact).filter(Contact.id == matches[0].id).first()
+
+            if not target:
+                return ToolResult(
+                    tool_name=self.name,
+                    success=False,
+                    message=f"Boss, I couldn't find '{contact_name_or_id}' in your contacts to delete.",
+                    error="CONTACT_NOT_FOUND"
+                )
+
+            name = target.name
+            db.delete(target)
+            db.commit()
+            return ToolResult(
+                tool_name=self.name,
+                success=True,
+                message=f"Deleted {name} from your contacts, boss.",
+                data={"deleted_contact": name}
+            )
+
+
+# ==========================================
+# Tool: import_contacts
+# ==========================================
+class ImportContactsInput(BaseModel):
+    file_path: Optional[str] = Field(default=None, description="Path to a .vcf (vCard) or .csv contacts file to import.")
+
+class ImportContactsTool(BaseTool):
+    name = "import_contacts"
+    description = "Imports real contacts from a vCard (.vcf) or CSV file from your computer."
+    permission_level = PermissionLevel.SAFE
+    args_schema = ImportContactsInput
+
+    def execute(self, file_path: Optional[str] = None) -> ToolResult:
+        import csv
+        from pathlib import Path
+
+        candidate_paths = []
+        if file_path:
+            candidate_paths.append(Path(file_path))
+        else:
+            # Search common user directories for contact files
+            search_roots = [
+                Path.home() / "Downloads",
+                Path.home() / "Documents",
+                Path.home() / "Desktop",
+                Path.cwd()
+            ]
+            for root in search_roots:
+                if root.exists():
+                    for pattern in ["*.vcf", "*contacts*.csv"]:
+                        candidate_paths.extend(root.glob(pattern))
+
+        if not candidate_paths or not candidate_paths[0].exists():
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, I couldn't find a contacts file (.vcf or .csv) to import. Please place your exported contacts in Downloads or Documents.",
+                error="FILE_NOT_FOUND"
+            )
+
+        target_file = candidate_paths[0]
+        imported_contacts = []
+
+        try:
+            if target_file.suffix.lower() == ".vcf":
+                content = target_file.read_text(encoding="utf-8", errors="ignore")
+                cards = content.split("BEGIN:VCARD")
+                for card in cards:
+                    if not card.strip():
+                        continue
+                    name = ""
+                    phone = ""
+                    email = ""
+                    for line in card.splitlines():
+                        line = line.strip()
+                        if line.startswith("FN:") or line.startswith("FN;"):
+                            name = line.split(":", 1)[1].strip()
+                        elif (line.startswith("TEL:") or line.startswith("TEL;")) and not phone:
+                            phone = line.split(":", 1)[1].strip()
+                        elif (line.startswith("EMAIL:") or line.startswith("EMAIL;")) and not email:
+                            email = line.split(":", 1)[1].strip()
+                    if name and phone:
+                        imported_contacts.append({"name": name, "phone": phone, "email": email or None})
+            elif target_file.suffix.lower() == ".csv":
+                with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        name = row.get("Name") or row.get("Full Name") or (row.get("First Name", "") + " " + row.get("Last Name", ""))
+                        phone = row.get("Phone") or row.get("Phone Number") or row.get("Mobile") or row.get("Phone 1 - Value")
+                        email = row.get("Email") or row.get("E-mail Address") or row.get("E-mail 1 - Value")
+                        if name and phone:
+                            imported_contacts.append({"name": name.strip(), "phone": phone.strip(), "email": (email or "").strip() or None})
+
+            if not imported_contacts:
+                return ToolResult(
+                    tool_name=self.name,
+                    success=True,
+                    message=f"Boss, '{target_file.name}' was found but contained no valid contact entries.",
+                    data={"imported_count": 0}
+                )
+
+            with get_db_context() as db:
+                added_count = 0
+                for c in imported_contacts:
+                    existing = db.query(Contact).filter(Contact.name == c["name"]).first()
+                    if not existing:
+                        db.add(Contact(name=c["name"], phone=c["phone"], email=c["email"]))
+                        added_count += 1
+                db.commit()
+
+            return ToolResult(
+                tool_name=self.name,
+                success=True,
+                message=f"Boss, successfully imported {added_count} contacts from '{target_file.name}'.",
+                data={"imported_count": added_count, "file": str(target_file)}
+            )
+        except Exception as exc:
+            logger.error(f"Error importing contacts from {target_file}: {exc}")
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message=f"Boss, an error occurred importing contacts: {str(exc)}",
+                error=str(exc)
+            )

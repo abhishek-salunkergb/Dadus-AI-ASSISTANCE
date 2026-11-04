@@ -1073,6 +1073,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
   syncPermissions();
 
+  // Device Hardware and Profile Inspector
+  async function loadDeviceInfo() {
+    try {
+      const res = await fetch('/api/device/info');
+      const data = await res.json();
+      if (!data.success || !data.device) return;
+      const dev = data.device;
+
+      // Update header device status text
+      const statusText = document.getElementById('deviceStatusText');
+      if (statusText) {
+        statusText.textContent = `${dev.os_name} ${dev.platform_release} (${dev.architecture}) // ${dev.hostname}`;
+      }
+
+      // Update Settings Profile Card
+      const osEl = document.getElementById('deviceInfoOs');
+      if (osEl) osEl.textContent = `${dev.os_name} ${dev.platform_release} (Build ${dev.os_version})`;
+
+      const cpuEl = document.getElementById('deviceInfoCpu');
+      if (cpuEl) cpuEl.textContent = `${dev.cpu_count} Logical Cores (${dev.architecture})`;
+
+      const memEl = document.getElementById('deviceInfoMemory');
+      if (memEl) memEl.textContent = `${dev.memory_total_gb} GB Physical RAM`;
+
+      const camEl = document.getElementById('deviceInfoCamera');
+      if (camEl) camEl.textContent = dev.has_camera ? (dev.camera_name || 'Active Camera') : 'None Detected';
+
+      const btEl = document.getElementById('deviceInfoBluetooth');
+      if (btEl) btEl.textContent = dev.has_bluetooth ? (dev.bluetooth_device_name || 'Active Controller') : 'None Detected';
+
+      const batEl = document.getElementById('deviceInfoBattery');
+      if (batEl) {
+        if (dev.has_battery) {
+          const chargingStr = dev.is_charging ? ' (Plugged In / Charging)' : ' (On Battery)';
+          batEl.textContent = `${dev.battery_percent}%${chargingStr}`;
+        } else {
+          batEl.textContent = 'AC Power (Desktop / No Battery)';
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load device info:', e);
+    }
+  }
+
+  loadDeviceInfo();
+
   // Initial MCP Tool Matrix inspection in background
   loadToolsMatrix();
 

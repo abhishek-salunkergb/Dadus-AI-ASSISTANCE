@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.config.settings import settings
 from app.database.database import init_db, get_db_context
-from app.database.models import Base, Reminder, ScheduleItem, MemoryItem, AuditLog
+from app.database.models import Base, Reminder, ScheduleItem, MemoryItem, AuditLog, TaskItem, Alarm, Contact
 from app.tools import register_default_tools
 from app.voice.tts import MockTTS
 from app.agent.agent import DadusAgent
@@ -33,6 +33,9 @@ def clean_database():
         db.query(ScheduleItem).delete()
         db.query(MemoryItem).delete()
         db.query(AuditLog).delete()
+        db.query(TaskItem).delete()
+        db.query(Alarm).delete()
+        db.query(Contact).delete()
 
 @pytest.fixture(autouse=True)
 def mock_external_side_effects(monkeypatch):

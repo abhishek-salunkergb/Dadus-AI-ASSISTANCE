@@ -144,3 +144,30 @@ class Contact(Base):
             "relationship": self.relationship,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
+
+
+class Alarm(Base):
+    """Stores user alarms with target trigger times, status, and recurrence."""
+    __tablename__ = "alarms"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    label = Column(String(255), default="Alarm", nullable=False)
+    target_time = Column(DateTime, nullable=False, index=True)
+    status = Column(String(50), default="scheduled", index=True)  # scheduled, triggered, cancelled, missed
+    recurrence = Column(String(50), default="none")  # none, daily, weekdays, weekends
+    sound = Column(String(100), default="default")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    triggered_at = Column(DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "label": self.label,
+            "target_time": self.target_time.isoformat() if self.target_time else None,
+            "status": self.status,
+            "recurrence": self.recurrence,
+            "sound": self.sound,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None
+        }
+
