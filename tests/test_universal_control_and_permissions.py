@@ -208,3 +208,4 @@ def test_api_permissions_get_and_post():
     # 3. POST /api/system/permissions toggle back to True
     client.post("/api/system/permissions", json={"permission": "device_lock", "enabled": True})
     assert permission_manager.is_permitted("device_lock") is True
+

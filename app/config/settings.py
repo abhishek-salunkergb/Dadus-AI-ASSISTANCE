@@ -35,10 +35,12 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: int = Field(default=30)
 
     # Voice / STT Settings
-    STT_PROVIDER: str = Field(default="speech_recognition", description="STT Provider: speech_recognition, whisper, mock")
+    STT_PROVIDER: str = Field(default="deepgram", description="STT Provider: deepgram, whisper, speech_recognition, mock")
     STT_LANGUAGE: str = Field(default="en-US")
     STT_ENERGY_THRESHOLD: int = Field(default=300)
     STT_DYNAMIC_ENERGY_THRESHOLD: bool = Field(default=True)
+    DEEPGRAM_API_KEY: Optional[str] = Field(default=None, description="Deepgram API key for Nova-2 speech-to-text")
+    DEEPGRAM_MODEL: str = Field(default="nova-2", description="Deepgram model: nova-2 (flagship low-latency), nova-3")
 
     # Voice / TTS Settings
     TTS_PROVIDER: str = Field(default="sapi", description="TTS Provider: sapi (Windows native), pyttsx3, openai, mock")
