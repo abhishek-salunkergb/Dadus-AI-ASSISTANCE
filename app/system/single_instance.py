@@ -56,3 +56,4 @@ class SingleInstanceLock:
                 logger.debug(f"Error releasing mutex: {ex}")
 
 single_instance = SingleInstanceLock()
+

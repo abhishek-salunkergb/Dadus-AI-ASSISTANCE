@@ -102,6 +102,32 @@ class IntentRouter:
             editor = memory_store.get_preferred_code_editor() or "Visual Studio Code"
             return PlannedToolCall(tool_name="open_app", arguments={"app_name": editor}), None
 
+        # Unlock refusal: Voice unlock is forbidden by OS security boundaries
+        if re.search(r"\b(?:unlock|un-lock)\s+(?:the\s+|my\s+)?(?:computer|device|pc|workstation|screen|desktop|windows)\b", lower):
+            return None, (
+                "Boss, for your security, DADUS cannot unlock your computer via voice. "
+                "Windows requires hardware biometric (Windows Hello) or password authentication directly on the lock screen."
+            )
+
+        # Device lock command
+        if re.search(r"\b(?:lock|secure)\s+(?:the\s+|my\s+)?(?:computer|device|pc|workstation|screen|desktop|windows)\b", lower):
+            return PlannedToolCall(tool_name="lock_device", arguments={}), None
+
+        # Bluetooth control
+        if re.search(r"\b(?:turn|switch)\s+(on|off)\s+bluetooth\b|\b(enable|disable)\s+bluetooth\b|\bbluetooth\s+(on|off)\b|\b(?:open|launch)\s+bluetooth(?:\s+settings)?\b", lower):
+            enable_bt = not any(w in lower for w in ["off", "disable"])
+            return PlannedToolCall(tool_name="toggle_bluetooth", arguments={"enable": enable_bt}), None
+
+        # Screenshot
+        if lower in ["take a screenshot", "take screenshot", "capture screen", "capture the screen", "screenshot"]:
+            return PlannedToolCall(tool_name="take_screenshot", arguments={}), None
+
+        # Compound command: "open <browser> and search for <query>"
+        browser_and_search = re.search(r"open\s+(?:google\s+)?(?:chrome|browser|edge|firefox)\s+and\s+search\s+(?:for\s+)?(.+)", clean, re.IGNORECASE)
+        if browser_and_search:
+            q = browser_and_search.group(1).strip(" .?!'\"")
+            return PlannedToolCall(tool_name="search_web", arguments={"query": q}), None
+
         # Direct application launches
         open_direct = re.match(r"^(?:open|launch|start|bring up)\s+(?:the\s+|my\s+|google\s+)?([a-zA-Z0-9\s\.\-_]+)$", clean, re.IGNORECASE)
         if open_direct:
@@ -400,6 +426,16 @@ class IntentRouter:
 
         if "lock" in lower and any(w in lower for w in ["screen", "pc", "computer", "device", "workstation"]):
             return PlannedToolCall(tool_name="lock_device", arguments={}), None
+
+        if re.search(r"\b(?:turn|switch)\s+(on|off)\s+bluetooth\b|\b(enable|disable)\s+bluetooth\b|\bbluetooth\s+(on|off)\b|\b(?:open|launch)\s+bluetooth(?:\s+settings)?\b", lower):
+            enable_bt = not any(w in lower for w in ["off", "disable"])
+            return PlannedToolCall(tool_name="toggle_bluetooth", arguments={"enable": enable_bt}), None
+
+        if re.search(r"\b(?:unlock|un-lock)\s+(?:the\s+|my\s+)?(?:computer|device|pc|workstation|screen|desktop|windows)\b", lower):
+            return None, (
+                "Boss, for your security, DADUS cannot unlock your computer via voice. "
+                "Windows requires hardware biometric (Windows Hello) or password authentication directly on the lock screen."
+            )
 
         # Log cleanup operations (safe two-phase confirmation)
         if any(p in lower for p in ["delete the logs", "clean up the logs", "clean the logs", "clear the logs", "clean logs", "delete logs", "clear logs"]):

@@ -1020,9 +1020,58 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: autostartToggle.checked })
         });
+        const startupBootToggle = document.getElementById('perm_startup_boot');
+        if (startupBootToggle) startupBootToggle.checked = autostartToggle.checked;
       } catch (e) {}
     });
   }
+
+  // System Capability Permissions Controller
+  async function syncPermissions() {
+    try {
+      const res = await fetch('/api/system/permissions');
+      const data = await res.json();
+      document.querySelectorAll('.perm-toggle').forEach(input => {
+        const permKey = input.dataset.perm;
+        if (data[permKey] && typeof data[permKey].enabled === 'boolean') {
+          input.checked = data[permKey].enabled;
+        }
+      });
+      if (autostartToggle && data['startup_boot']) {
+        autostartToggle.checked = !!data['startup_boot'].enabled;
+      }
+    } catch (e) {
+      console.error('Failed to sync permissions:', e);
+    }
+  }
+
+  document.querySelectorAll('.perm-toggle').forEach(input => {
+    input.addEventListener('change', async () => {
+      const permKey = input.dataset.perm;
+      const isEnabled = input.checked;
+      const statusEl = document.getElementById('permSaveStatus');
+      try {
+        if (statusEl) statusEl.textContent = 'Saving...';
+        await fetch('/api/system/permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permission: permKey, enabled: isEnabled })
+        });
+        if (statusEl) {
+          statusEl.textContent = 'Saved';
+          setTimeout(() => { if (statusEl.textContent === 'Saved') statusEl.textContent = ''; }, 2000);
+        }
+        if (permKey === 'startup_boot' && autostartToggle) {
+          autostartToggle.checked = isEnabled;
+        }
+      } catch (err) {
+        if (statusEl) statusEl.textContent = 'Error saving';
+        console.error('Failed to update permission:', err);
+      }
+    });
+  });
+
+  syncPermissions();
 
   // Initial MCP Tool Matrix inspection in background
   loadToolsMatrix();

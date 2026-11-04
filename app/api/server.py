@@ -376,6 +376,38 @@ def set_autostart_status(payload: Dict[str, bool]):
     success = autostart_manager.enable_autostart() if enable else autostart_manager.disable_autostart()
     return {"success": success, "enabled": autostart_manager.is_autostart_enabled()}
 
+@app.get("/api/system/permissions")
+def get_system_permissions():
+    """Retrieve full catalog of capability permissions and their current toggle states."""
+    from app.security.permissions import permission_manager
+    return permission_manager.get_all_permissions()
+
+@app.post("/api/system/permissions")
+def update_system_permissions(payload: Dict[str, Any]):
+    """
+    Update granular capability permissions (e.g. Device Lock toggle).
+    Accepts either {"permission": "device_lock", "enabled": False}
+    or {"permissions": {"device_lock": False, ...}}
+    """
+    from app.security.permissions import permission_manager
+    if "permissions" in payload and isinstance(payload["permissions"], dict):
+        for cap, val in payload["permissions"].items():
+            permission_manager.set_permission(cap, bool(val))
+    elif "permission" in payload:
+        cap = payload.get("permission")
+        val = payload.get("enabled", True)
+        if cap:
+            permission_manager.set_permission(cap, bool(val))
+    else:
+        raise HTTPException(status_code=400, detail="Expected 'permission' or 'permissions' in request body")
+
+    return {
+        "success": True,
+        "message": "Permissions updated successfully",
+        "permissions": permission_manager.get_all_permissions()
+    }
+
+
 
 class VoiceStateBroadcaster:
     """Manages real-time WebSocket state synchronization for DADUS 3D Holographic Orb."""

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 import psutil
 
 from app.tools.base import BaseTool, ToolResult
-from app.security.permissions import PermissionLevel
+from app.security.permissions import PermissionLevel, permission_manager
 
 logger = logging.getLogger("DADUS.Apps")
 
@@ -277,6 +277,14 @@ class OpenAppTool(BaseTool):
     args_schema = OpenAppInput
 
     def execute(self, app_name: str) -> ToolResult:
+        if not permission_manager.is_permitted("app_control"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Application Control permission is currently disabled in your DADUS settings. Please enable Application Control in settings to allow me to open applications.",
+                error="PERMISSION_DENIED"
+            )
+
         clean_name = app_name.strip().lower()
         logger.info(f"Executing open_app for '{app_name}'")
 
@@ -306,17 +314,14 @@ class OpenAppTool(BaseTool):
                 return self._build_success_result(app_info.name, "window_focused", target)
 
             try:
-                def _launch_desktop_target():
-                    try:
-                        if target.lower().endswith(".lnk") or os.path.exists(target):
-                            os.startfile(target)
-                        else:
-                            subprocess.Popen([target], shell=False)
-                    except Exception as e:
-                        logger.warning(f"Error launching {target}: {e}")
+                # Direct verified launch
+                if target.lower().endswith(".lnk") or os.path.exists(target):
+                    os.startfile(target)
+                else:
+                    subprocess.Popen([target], shell=False)
 
-                import threading
-                threading.Thread(target=_launch_desktop_target, daemon=True).start()
+                import time
+                time.sleep(0.3)
                 return self._build_success_result(app_info.name, "desktop_app", target)
             except Exception as ex:
                 logger.warning(f"Local app launch failed for '{app_name}', attempting browser fallback: {ex}")
@@ -380,6 +385,14 @@ class CloseAppTool(BaseTool):
     args_schema = CloseAppInput
 
     def execute(self, app_name: str) -> ToolResult:
+        if not permission_manager.is_permitted("app_control"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Application Control permission is currently disabled in your DADUS settings. Please enable Application Control in settings to allow me to close applications.",
+                error="PERMISSION_DENIED"
+            )
+
         clean_name = app_name.strip().lower()
         target_patterns = [clean_name]
 

@@ -75,6 +75,20 @@ class ContextResolver:
             active_song = session.context_entities.get("active_song") or "relaxing music"
             return "play_music", {"song": active_song, "result_index": 1}, None
 
+        # 8. Browser Search Follow-Up: "search for <query>" when browser is active
+        search_followup = re.search(r"^(?:now\s+)?search\s+(?:for\s+)?(.+)$", lower)
+        if search_followup:
+            active_app = (session.context_entities.get("active_app") or "").lower()
+            if any(b in active_app for b in ["chrome", "browser", "edge", "firefox", "google"]):
+                q = search_followup.group(1).strip(" .?!'\"")
+                return "search_web", {"query": q}, None
+
+        # 9. Screenshot / File Open Follow-Up: "open it", "view it", "show it"
+        if re.search(r"^(?:open|view|show)\s+(?:it|the\s+screenshot|the\s+picture|the\s+file)$", lower):
+            active_file = session.context_entities.get("active_file")
+            if active_file:
+                return "open_folder", {"path": active_file}, None
+
         return None, None, None
 
     @classmethod

@@ -497,15 +497,111 @@
                 </div>
               </div>
 
-              <div class="settings-card">
-                <h3 class="settings-card-title">Security & Sensitive Operations</h3>
-                <div class="setting-item">
-                  <span class="setting-name">Confirmation Barrier</span>
-                  <span class="setting-val" style="color: #10b981;">ENFORCED (App Closing, Calls, Deletions)</span>
+              <div class="settings-card" style="grid-column: 1 / -1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <h3 class="settings-card-title" style="margin-bottom:0;">Device Permissions & Capability Controls</h3>
+                  <span id="permSaveStatus" style="font-size: 0.78rem; color: #10b981; font-weight: 600;"></span>
                 </div>
-                <div class="setting-item">
-                  <span class="setting-name">Assistant Persona</span>
-                  <span class="setting-val">Executive JARVIS Protocol</span>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px;">
+                  Configure which operating-system features and tools DADUS is authorized to execute. Sensitive actions still require explicit confirmation.
+                </p>
+
+                <div class="permissions-container" id="permissionsList">
+                  <!-- Dynamically populated and backed by /api/system/permissions -->
+                  <div class="permission-item" style="background: rgba(0, 240, 255, 0.04); padding: 12px; border-radius: 10px; border: 1px solid rgba(0, 240, 255, 0.2);">
+                    <div class="permission-info">
+                      <div class="permission-title" style="color: #00f0ff; display:flex; align-items:center; gap:6px;">
+                        <span>🔒 Device Lock</span>
+                        <span style="font-size:0.68rem; background:rgba(0,240,255,0.2); color:#00f0ff; padding:2px 6px; border-radius:6px;">CORE CONTROL</span>
+                      </div>
+                      <div class="permission-desc">Allows DADUS to lock the Windows workstation when requested by voice ("Lock my computer")</div>
+                    </div>
+                    <input type="checkbox" id="perm_device_lock" class="perm-toggle" data-perm="device_lock" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Application Control</div>
+                      <div class="permission-desc">Allows launching, focusing, and closing installed Windows applications</div>
+                    </div>
+                    <input type="checkbox" id="perm_app_control" class="perm-toggle" data-perm="app_control" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Browser Automation</div>
+                      <div class="permission-desc">Allows opening web URLs and executing Google search queries</div>
+                    </div>
+                    <input type="checkbox" id="perm_browser_automation" class="perm-toggle" data-perm="browser_automation" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">System Controls & Bluetooth</div>
+                      <div class="permission-desc">Allows adjusting system audio volume, mute status, and Bluetooth toggling</div>
+                    </div>
+                    <input type="checkbox" id="perm_system_controls" class="perm-toggle" data-perm="system_controls" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Screen Capture</div>
+                      <div class="permission-desc">Allows capturing desktop screenshots upon voice command</div>
+                    </div>
+                    <input type="checkbox" id="perm_screen_capture" class="perm-toggle" data-perm="screen_capture" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">File Access</div>
+                      <div class="permission-desc">Allows searching and listing documents in Desktop, Documents, and project folders</div>
+                    </div>
+                    <input type="checkbox" id="perm_file_access" class="perm-toggle" data-perm="file_access" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">File Deletion (Strictly Requires Confirmation)</div>
+                      <div class="permission-desc">Allows cleaning temporary logs or removing files; always requires two-phase user confirmation</div>
+                    </div>
+                    <input type="checkbox" id="perm_file_deletion" class="perm-toggle" data-perm="file_deletion" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">External Service Integrations</div>
+                      <div class="permission-desc">Allows connecting to Gmail API for recruiter thread analysis and communications</div>
+                    </div>
+                    <input type="checkbox" id="perm_external_services" class="perm-toggle" data-perm="external_services" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Microphone & Always-On Wake Word</div>
+                      <div class="permission-desc">Monitors microphone stream continuously for the 'Hey Dadus' wake phrase</div>
+                    </div>
+                    <input type="checkbox" id="perm_microphone_wakeword" class="perm-toggle" data-perm="microphone_wakeword" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Background Operation</div>
+                      <div class="permission-desc">Allows running in Windows system notification tray with global hotkey support</div>
+                    </div>
+                    <input type="checkbox" id="perm_background_operation" class="perm-toggle" data-perm="background_operation" checked>
+                  </div>
+
+                  <div class="permission-item">
+                    <div class="permission-info">
+                      <div class="permission-title">Launch on Windows Startup</div>
+                      <div class="permission-desc">Registers in Windows user registry to boot automatically with your computer</div>
+                    </div>
+                    <input type="checkbox" id="perm_startup_boot" class="perm-toggle" data-perm="startup_boot">
+                  </div>
+                </div>
+
+                <div style="margin-top: 14px; padding: 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; font-size: 0.78rem; color: #10b981;">
+                  🛡️ <strong>Safety Guarantee:</strong> Disabling any capability instantly cuts backend tool execution. Device Unlocking via voice is permanently forbidden to preserve OS biometric and password integrity.
                 </div>
               </div>
             </div>

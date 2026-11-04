@@ -71,3 +71,4 @@ class WindowsAutostartManager:
             return False
 
 autostart_manager = WindowsAutostartManager()
+

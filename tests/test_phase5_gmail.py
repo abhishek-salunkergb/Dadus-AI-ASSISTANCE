@@ -104,3 +104,4 @@ def test_agent_contextual_email_sequence(mock_launch):
     assert res2.tool_called == "open_email_thread"
     mock_launch.assert_called_once()
     assert "mail.google.com/mail" in mock_launch.call_args[0][0]
+

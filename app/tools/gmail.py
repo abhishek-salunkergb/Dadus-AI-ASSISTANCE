@@ -411,3 +411,4 @@ class OpenEmailThreadTool(BaseTool):
             message=f"Opening that conversation in Gmail, Boss.",
             data={"thread_id": thread_id, "url": url}
         )
+

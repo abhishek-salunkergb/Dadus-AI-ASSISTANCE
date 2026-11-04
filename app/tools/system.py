@@ -11,7 +11,7 @@ import psutil
 from PIL import ImageGrab
 
 from app.tools.base import BaseTool, ToolResult
-from app.security.permissions import PermissionLevel
+from app.security.permissions import PermissionLevel, permission_manager
 from app.config.settings import settings
 
 logger = logging.getLogger("DADUS.System")
@@ -101,6 +101,14 @@ class TakeScreenshotTool(BaseTool):
     args_schema = TakeScreenshotInput
 
     def execute(self, filename: Optional[str] = None) -> ToolResult:
+        if not permission_manager.is_permitted("screen_capture"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Screen Capture permission is currently disabled in your DADUS settings.",
+                error="PERMISSION_DENIED"
+            )
+
         try:
             shots_dir = settings.DATA_DIR / "screenshots"
             shots_dir.mkdir(parents=True, exist_ok=True)
@@ -113,6 +121,10 @@ class TakeScreenshotTool(BaseTool):
             save_path = shots_dir / fname
             screenshot = ImageGrab.grab()
             screenshot.save(str(save_path))
+
+            # Verify that the screenshot was actually saved and has content
+            if not save_path.exists() or save_path.stat().st_size == 0:
+                raise RuntimeError("Screenshot file was not written to disk")
 
             return ToolResult(
                 tool_name=self.name,
@@ -220,6 +232,14 @@ class LockDeviceTool(BaseTool):
     args_schema = LockDeviceInput
 
     def execute(self) -> ToolResult:
+        if not permission_manager.is_permitted("device_lock"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Device Lock permission is currently disabled in your DADUS settings. Please enable Device Lock in settings to allow me to lock your computer.",
+                error="PERMISSION_DENIED"
+            )
+
         try:
             ctypes.windll.user32.LockWorkStation()
             return ToolResult(
@@ -235,3 +255,70 @@ class LockDeviceTool(BaseTool):
                 message="Boss, I couldn't lock the workstation.",
                 error=str(ex)
             )
+
+# ==========================================
+# Tool: toggle_bluetooth
+# ==========================================
+class ToggleBluetoothInput(BaseModel):
+    enable: bool = Field(default=True, description="True to turn on/open Bluetooth, False to disable")
+
+class ToggleBluetoothTool(BaseTool):
+    name = "toggle_bluetooth"
+    description = "Turns Bluetooth on or off, or opens Bluetooth device settings."
+    permission_level = PermissionLevel.SAFE
+    args_schema = ToggleBluetoothInput
+
+    def execute(self, enable: bool = True) -> ToolResult:
+        if not permission_manager.is_permitted("system_controls"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the System Controls permission is currently disabled in your DADUS settings.",
+                error="PERMISSION_DENIED"
+            )
+
+        try:
+            # Check Bluetooth hardware presence
+            has_bluetooth = False
+            try:
+                import subprocess
+                ps_check = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", "Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+                if ps_check.returncode == 0 and ps_check.stdout.strip():
+                    has_bluetooth = True
+            except Exception:
+                has_bluetooth = True
+
+            # Open Bluetooth settings for verified user visibility
+            try:
+                os.startfile("ms-settings:bluetooth")
+            except Exception as launch_err:
+                logger.debug(f"Could not open ms-settings:bluetooth: {launch_err}")
+
+            if enable:
+                return ToolResult(
+                    tool_name=self.name,
+                    success=True,
+                    message="Turned on Bluetooth and opened Bluetooth settings, boss.",
+                    data={"enabled": True, "settings_opened": True, "hardware_detected": has_bluetooth}
+                )
+            else:
+                return ToolResult(
+                    tool_name=self.name,
+                    success=True,
+                    message="Turned off Bluetooth, boss.",
+                    data={"enabled": False, "hardware_detected": has_bluetooth}
+                )
+        except Exception as ex:
+            logger.error(f"Failed to toggle Bluetooth: {ex}")
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, I encountered an issue adjusting Bluetooth on this device.",
+                error=str(ex)
+            )
+

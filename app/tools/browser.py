@@ -8,7 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.tools.base import BaseTool, ToolResult
-from app.security.permissions import PermissionLevel
+from app.security.permissions import PermissionLevel, permission_manager
 
 logger = logging.getLogger("DADUS.Browser")
 
@@ -55,6 +55,14 @@ class OpenBrowserTool(BaseTool):
     args_schema = OpenBrowserInput
 
     def execute(self, url: str) -> ToolResult:
+        if not permission_manager.is_permitted("browser_automation"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Browser Automation permission is currently disabled in your DADUS settings.",
+                error="PERMISSION_DENIED"
+            )
+
         clean_url = url.strip()
         if not (clean_url.startswith("http://") or clean_url.startswith("https://")):
             clean_url = f"https://{clean_url}"
@@ -89,6 +97,14 @@ class SearchWebTool(BaseTool):
     args_schema = SearchWebInput
 
     def execute(self, query: str) -> ToolResult:
+        if not permission_manager.is_permitted("browser_automation"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Browser Automation permission is currently disabled in your DADUS settings.",
+                error="PERMISSION_DENIED"
+            )
+
         encoded = urllib.parse.quote_plus(query.strip())
         search_url = f"https://www.google.com/search?q={encoded}"
         try:
@@ -120,6 +136,14 @@ class SearchYouTubeTool(BaseTool):
     args_schema = SearchYouTubeInput
 
     def execute(self, query: str) -> ToolResult:
+        if not permission_manager.is_permitted("browser_automation"):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message="Boss, the Browser Automation permission is currently disabled in your DADUS settings.",
+                error="PERMISSION_DENIED"
+            )
+
         encoded = urllib.parse.quote_plus(query.strip())
         yt_url = f"https://www.youtube.com/results?search_query={encoded}"
         try:

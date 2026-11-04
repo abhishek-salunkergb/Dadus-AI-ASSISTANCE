@@ -13,7 +13,8 @@ from app.tools.system import (
     TakeScreenshotTool,
     GetCurrentTimeTool,
     GetSystemStatusTool,
-    LockDeviceTool
+    LockDeviceTool,
+    ToggleBluetoothTool
 )
 from app.tools.files import SearchFilesTool, DeleteFileOrFolderTool
 from app.tools.reminders import CreateReminderTool, ListRemindersTool
@@ -55,6 +56,7 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         GetCurrentTimeTool(),
         GetSystemStatusTool(),
         LockDeviceTool(),
+        ToggleBluetoothTool(),
         # Files & Projects
         SearchFilesTool(),
         DeleteFileOrFolderTool(),

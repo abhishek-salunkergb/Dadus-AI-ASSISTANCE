@@ -41,3 +41,4 @@ def test_agent_routes_play_believer_on_youtube(mock_launch):
     assert "Believer" in resp.text
     assert "YouTube" in resp.text
     mock_launch.assert_called_once()
+

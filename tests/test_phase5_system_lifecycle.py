@@ -36,3 +36,4 @@ def test_autostart_check_enabled(mock_query, mock_open):
     mock_query.return_value = ("python run.py --tray", 1)
     enabled = WindowsAutostartManager.is_autostart_enabled()
     assert enabled is True
+

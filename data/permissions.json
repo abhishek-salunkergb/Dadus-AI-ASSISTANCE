@@ -1,0 +1,13 @@
+{
+  "device_lock": true,
+  "app_control": true,
+  "browser_automation": true,
+  "system_controls": true,
+  "screen_capture": true,
+  "file_access": true,
+  "file_deletion": true,
+  "external_services": true,
+  "microphone_wakeword": true,
+  "background_operation": true,
+  "startup_boot": false
+}

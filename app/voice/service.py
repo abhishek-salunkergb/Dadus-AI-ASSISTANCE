@@ -289,3 +289,4 @@ class VoiceAgentService:
             self._set_state(VoiceState.IDLE_WAKE_MONITORING, "Standing by for 'Hey Dadus'...")
 
 voice_service = VoiceAgentService()
+
