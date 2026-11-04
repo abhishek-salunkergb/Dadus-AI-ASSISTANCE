@@ -145,47 +145,64 @@ class VoiceAgentService:
         logger.info(f"Background Wake Monitoring active. Configured phrases: {self.wake_phrases}")
 
         while self._running:
+            detected = False
+            inline_command = ""
             try:
-                self._set_state(VoiceState.IDLE_WAKE_MONITORING, "Listening for 'Hey Dadus'...")
-
-                # Capture short audio window to check for wake phrase
+                # Persistent microphone capture stream
                 with sr.Microphone() as source:
                     self.mic_available = True
-                    try:
-                        audio = recognizer.listen(source, timeout=3.0, phrase_time_limit=4.5)
-                    except sr.WaitTimeoutError:
-                        continue
+                    recognizer.adjust_for_ambient_noise(source, duration=0.3)
 
-                # Transcribe captured snippet
-                try:
-                    text = recognizer.recognize_google(audio, language="en-US").strip()
-                except (sr.UnknownValueError, sr.RequestError):
-                    continue
+                    while self._running:
+                        self._set_state(VoiceState.IDLE_WAKE_MONITORING, "Listening for 'Hey Dadus'...")
+                        try:
+                            audio = recognizer.listen(source, timeout=3.0, phrase_time_limit=4.5)
+                        except sr.WaitTimeoutError:
+                            continue
 
-                if not text:
-                    continue
+                        # Transcribe captured snippet using Deepgram Nova-2 (if available) or Google
+                        text = None
+                        wav_data = audio.get_wav_data()
+                        if hasattr(stt, "transcribe_bytes") and getattr(stt, "_get_api_key", lambda: None)():
+                            try:
+                                text = stt.transcribe_bytes(wav_data)
+                            except Exception:
+                                pass
 
-                lower = text.lower()
-                detected = False
-                inline_command = ""
+                        if not text:
+                            try:
+                                text = recognizer.recognize_google(audio, language="en-US").strip()
+                            except (sr.UnknownValueError, sr.RequestError):
+                                continue
 
-                # Robust phonetic pattern matching for 'Hey Dadus'
-                wake_pattern = r"\b(hey|hi|ok|hello)?\s*(dadus|dadas|dad\s*is|dadu|datus|daddus|dartus|status|that\s*is)\b"
-                match = re.search(wake_pattern, lower)
-                if match:
-                    detected = True
-                    inline_command = text[match.end():].strip(" ,.?!")
-                else:
-                    for phrase in self.wake_phrases:
-                        if phrase in lower:
+                        if not text:
+                            continue
+
+                        lower = text.lower()
+
+                        # Robust phonetic pattern matching for 'Hey Dadus' (including Google's "headaches", "hey status", etc.)
+                        wake_pattern = r"\b(?:hey|hi|ok|hello|a)?\s*(?:dadus|dadas|dad\s*is|dadu|datus|daddus|dartus|status|that\s*is|headache|headaches|doctors|address|the\s*dust)\b"
+                        match = re.search(wake_pattern, lower)
+                        if match:
                             detected = True
-                            idx = lower.find(phrase) + len(phrase)
-                            inline_command = text[idx:].strip(" ,.?!")
+                            inline_command = text[match.end():].strip(" ,.?!")
                             break
+                        else:
+                            for phrase in self.wake_phrases:
+                                if phrase in lower:
+                                    detected = True
+                                    idx = lower.find(phrase) + len(phrase)
+                                    inline_command = text[idx:].strip(" ,.?!")
+                                    break
+                            if detected:
+                                break
 
+                # Handle active turn outside the microphone context so hardware buffers clear cleanly
                 if detected:
                     logger.info(f"Wake word detected! (Inline command: '{inline_command}')")
                     self._handle_active_turn(inline_command=inline_command, is_new_wake=True)
+                    # Pause briefly to ensure output audio is flushed before re-opening microphone
+                    time.sleep(0.5)
 
             except Exception as ex:
                 self.last_error = str(ex)
@@ -248,6 +265,17 @@ class VoiceAgentService:
                     tts.speak("Cancelled, Boss.", async_mode=False)
                     in_conversation = False
                     break
+
+                # If user repeated wake word during follow-up window (e.g. "Hey Dadus open Chrome" or just "Hey Dadus")
+                wake_match = re.search(r"\b(?:hey|hi|ok|hello|a)?\s*(?:dadus|dadas|dad\s*is|dadu|datus|daddus|dartus|status|that\s*is|headache|headaches)\b", lower_cmd)
+                if wake_match:
+                    rem_cmd = command_text[wake_match.end():].strip(" ,.?!")
+                    if rem_cmd:
+                        command_text = rem_cmd
+                    else:
+                        self._set_state(VoiceState.GREETING, "I'm listening, Boss. Tell me.")
+                        tts.speak("I'm listening, Boss. Tell me.", async_mode=False)
+                        continue
 
                 # Check for unintelligible speech
                 if len(command_text) < 2:
