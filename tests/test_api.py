@@ -54,6 +54,32 @@ def test_api_memory_endpoints(client):
     assert del_resp.status_code == 200
     assert del_resp.json()["success"] is True
 
+def test_api_tasks_crud_including_delete(client):
+    """Verify task creation, completion, and deletion endpoints."""
+    # 1. Create
+    create_resp = client.post("/api/tasks", json={"title": "API Test Task", "priority": "high"})
+    assert create_resp.status_code == 200
+    task_id = create_resp.json()["task"]["id"]
+
+    # 2. List
+    list_resp = client.get("/api/tasks")
+    assert list_resp.status_code == 200
+    assert any(t["id"] == task_id for t in list_resp.json()["tasks"])
+
+    # 3. Complete
+    comp_resp = client.post(f"/api/tasks/{task_id}/complete")
+    assert comp_resp.status_code == 200
+    assert comp_resp.json()["success"] is True
+
+    # 4. Delete
+    del_resp = client.delete(f"/api/tasks/{task_id}")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["success"] is True
+
+    # 5. Verify deleted from list
+    verify_resp = client.get("/api/tasks?status=all")
+    assert not any(t["id"] == task_id for t in verify_resp.json()["tasks"])
+
 def test_api_confirm_endpoint(client):
     """Verify /api/confirm resolves pending confirmation."""
     # Trigger a confirmation
@@ -101,3 +127,34 @@ def test_api_mcp_endpoints(client):
     assert call_resp.status_code == 200
     cdata = call_resp.json()
     assert cdata.get("result", {}).get("isError") is False
+
+def test_api_voice_state_endpoints(client):
+    """Verify voice state broadcast REST endpoints."""
+    # 1. Get initial state
+    resp = client.get("/api/voice/state")
+    assert resp.status_code == 200
+    assert "state" in resp.json()
+
+    # 2. Update state to listening
+    post_resp = client.post("/api/voice/state", json={"state": "listening", "text": "Listening to boss..."})
+    assert post_resp.status_code == 200
+    assert post_resp.json()["state"] == "listening"
+
+    # 3. Verify get returns updated state
+    verify_resp = client.get("/api/voice/state")
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["state"] == "listening"
+
+    # 4. Reset back to idle
+    reset_resp = client.post("/api/voice/state", json={"state": "idle"})
+    assert reset_resp.status_code == 200
+    assert reset_resp.json()["state"] == "idle"
+
+
+def test_sync_voice_state_helper():
+    """Verify in-process thread-safe sync_voice_state helper updates broadcaster state."""
+    from app.api.server import sync_voice_state, voice_broadcaster
+    sync_voice_state("thinking", "Analyzing query...")
+    assert voice_broadcaster.current_state == "thinking"
+    sync_voice_state("idle")
+    assert voice_broadcaster.current_state == "idle"

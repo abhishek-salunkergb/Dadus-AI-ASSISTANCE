@@ -1,13 +1,13 @@
 """Database connection, engine, and session management for DADUS."""
 from contextlib import contextmanager
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from app.config.settings import settings
 from app.database.models import Base
 
 # Ensure SQLite handles multi-threaded access gracefully for GUI + background tasks
-connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+connect_args = {"check_same_thread": False, "timeout": 15.0} if settings.DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(
     settings.DATABASE_URL,
@@ -15,7 +15,21 @@ engine = create_engine(
     echo=False
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """Enable Write-Ahead Logging (WAL) and set busy timeout for concurrent threads."""
+    if settings.DATABASE_URL.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA busy_timeout=5000")
+        except Exception:
+            pass
+        finally:
+            cursor.close()
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 def init_db() -> None:
     """Initialize database tables and run lightweight migrations."""
@@ -34,6 +48,23 @@ def init_db() -> None:
                 conn.commit()
         except Exception:
             pass
+
+    # Seed default contacts if table is empty
+    with SessionLocal() as db_session:
+        try:
+            from app.database.models import Contact
+            if db_session.query(Contact).count() == 0:
+                defaults = [
+                    Contact(name="Abhishek Salunke", phone="+91 98765 43210", email="abhishek.salunke@example.com", relationship="friend"),
+                    Contact(name="Abhishek Chavhan", phone="+91 98765 43211", email="abhishek.chavhan@example.com", relationship="colleague"),
+                    Contact(name="Abhishek Patil", phone="+91 98765 43212", email="abhishek.patil@example.com", relationship="friend"),
+                    Contact(name="Rahul Sharma", phone="+91 98765 43213", email="rahul.sharma@example.com", relationship="colleague"),
+                    Contact(name="Priya Patel", phone="+91 98765 43214", email="priya.patel@example.com", relationship="family"),
+                ]
+                db_session.add_all(defaults)
+                db_session.commit()
+        except Exception:
+            db_session.rollback()
 
 @contextmanager
 def get_db_context() -> Generator[Session, None, None]:

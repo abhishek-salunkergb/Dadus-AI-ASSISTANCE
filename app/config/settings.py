@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     # Voice / TTS Settings
     TTS_PROVIDER: str = Field(default="sapi", description="TTS Provider: sapi (Windows native), pyttsx3, openai, mock")
-    TTS_VOICE: str = Field(default="nova", description="OpenAI voice: nova (warm Siri-like), alloy, shimmer, echo, onyx")
+    TTS_VOICE: str = Field(default="alloy", description="OpenAI voice: alloy, shimmer, echo, onyx")
     TTS_VOICE_RATE: int = Field(default=1, description="Speech rate adjustment (-10 to 10 for SAPI)")
     TTS_VOICE_VOLUME: int = Field(default=100, description="Volume 0-100")
     TTS_ENABLED: bool = Field(default=True)
@@ -64,7 +64,14 @@ class Settings(BaseSettings):
     # API & UI Server
     API_HOST: str = Field(default="127.0.0.1")
     API_PORT: int = Field(default=8000)
-    CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])
+    CORS_ORIGINS: List[str] = Field(default_factory=lambda: [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ], description="Allowed CORS origins for web UI and local development clients")
 
     # Logging
     LOG_LEVEL: str = Field(default="INFO")
@@ -76,6 +83,7 @@ class Settings(BaseSettings):
         self.LOG_DIR.mkdir(parents=True, exist_ok=True)
         (self.DATA_DIR / "screenshots").mkdir(parents=True, exist_ok=True)
         (self.DATA_DIR / "audio").mkdir(parents=True, exist_ok=True)
+        (self.DATA_DIR / "scratch").mkdir(parents=True, exist_ok=True)
 
 settings = Settings()
 settings.ensure_directories()

@@ -78,53 +78,198 @@ def run_cli_mode() -> None:
             print("Dadus: Boss, an unexpected error occurred.")
 
 def run_voice_loop() -> None:
-    """Continuous wake-word listening loop."""
+    """Continuous wake-word listening loop with audio ducking and global hotkey."""
+    from app.audio.ducking import audio_ducker
+    from app.system.hotkey import global_hotkey
+
     tts = get_tts_provider()
     wakeword = get_wakeword_provider()
+    stt = get_stt_provider()
 
-    logger.info(f"DADUS Voice Engine running. Say '{settings.WAKE_PHRASE}' followed by your command.")
+    logger.info(f"DADUS Voice Engine running. Say '{settings.WAKE_PHRASE}' or press Alt+Shift+D.")
     tts.speak(f"DADUS voice monitoring active, boss. I am listening for {settings.WAKE_PHRASE}.", async_mode=False)
 
-    def on_wake(command_text: str):
-        if not command_text.strip():
-            try:
-                tts.stop()
-            except Exception:
-                pass
+    _wake_lock = threading.Lock()
 
-            # Play modern Siri-style dual activation chime
-            try:
-                import winsound
-                winsound.Beep(880, 80)
-                time.sleep(0.03)
-                winsound.Beep(1320, 140)
-            except Exception:
-                pass
+    def on_wake(command_text: str = ""):
+        from app.api.server import sync_voice_state
+        # Immediately halt active speech to enable barge-in
+        try:
+            tts.stop()
+        except Exception:
+            pass
 
-            stt = get_stt_provider()
-            command_text = stt.listen_and_transcribe(timeout=6, phrase_time_limit=12) or ""
+        # Allow previous interrupted speech cycle up to 600ms to exit cleanly
+        if not _wake_lock.acquire(timeout=0.6):
+            logger.info("Wake event dropped: DADUS busy with non-interruptible process.")
+            return
 
-        if command_text.strip():
-            logger.info(f"Processing voice command: '{command_text}'")
-            resp = dadus_agent.process_input(command_text, session_id="voice_session")
-            logger.info(f"DADUS response: '{resp.text}'")
-            tts.speak(resp.text, async_mode=False)
+        try:
+            with audio_ducker:
+                sync_voice_state("listening", "Listening to boss...")
+                if not command_text.strip():
+                    # Play activation chime
+                    try:
+                        import winsound
+                        winsound.Beep(880, 80)
+                        time.sleep(0.03)
+                        winsound.Beep(1320, 140)
+                    except Exception:
+                        pass
 
+                    command_text = stt.listen_and_transcribe(timeout=6, phrase_time_limit=12) or ""
+
+                if command_text.strip():
+                    sync_voice_state("thinking", f"Processing: '{command_text}'")
+                    logger.info(f"Processing voice command: '{command_text}'")
+                    lower_cmd = command_text.strip().lower()
+                    if lower_cmd in ["stop", "stop talking", "stop reading", "be quiet", "shut up", "cancel", "quiet", "halt"]:
+                        tts.stop()
+                        resp_text = "Stopped, boss."
+                    else:
+                        resp = dadus_agent.process_input(command_text, session_id="voice_session")
+                        resp_text = resp.text
+
+                    sync_voice_state("speaking", resp_text)
+                    logger.info(f"DADUS response: '{resp_text}'")
+                    tts.speak(resp_text, async_mode=False)
+        finally:
+            sync_voice_state("idle", "Standing by...")
+            _wake_lock.release()
+
+    # Register global hotkey (Alt + Shift + D)
+    global_hotkey.start(lambda: on_wake(""))
+
+    # Start wake word listener
     wakeword.start_listening(on_wake)
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received.")
+    finally:
         wakeword.stop_listening()
+        global_hotkey.stop()
+        audio_ducker.restore()
         logger.info("Voice monitoring stopped.")
+
+def run_tray_mode(host: str, port: int) -> None:
+    """Run DADUS silently in Windows System Tray with global hotkey and background wake word."""
+    from app.audio.ducking import audio_ducker
+    from app.system.hotkey import global_hotkey
+    from app.system.tray import dadus_tray
+
+    tts = get_tts_provider()
+    wakeword = get_wakeword_provider()
+    stt = get_stt_provider()
+
+    logger.info("Starting DADUS in Windows System Tray Daemon mode.")
+    print("=" * 60)
+    print("      DADUS - Personal AI Operating Assistant Daemon")
+    print(f"      • Wake Phrase: '{settings.WAKE_PHRASE}'")
+    print("      • Global Hotkey: Alt + Shift + D")
+    print(f"      • Dashboard API: http://{host}:{port}")
+    print("      • System Tray: Active in Windows Notification Area")
+    print("=" * 60)
+
+    # 1. Start API Server in background thread
+    server_thread = threading.Thread(
+        target=start_api_server,
+        args=(host, port),
+        daemon=True
+    )
+    server_thread.start()
+
+    _wake_lock = threading.Lock()
+
+    def on_wake(command_text: str = ""):
+        from app.api.server import sync_voice_state
+        # Immediately halt active speech to enable barge-in
+        try:
+            tts.stop()
+        except Exception:
+            pass
+
+        # Allow previous interrupted speech cycle up to 600ms to exit cleanly
+        if not _wake_lock.acquire(timeout=0.6):
+            logger.info("Wake event dropped: DADUS busy with non-interruptible process.")
+            return
+
+        try:
+            with audio_ducker:
+                sync_voice_state("listening", "Listening to boss...")
+                if not command_text.strip():
+                    # Play activation chime
+                    try:
+                        import winsound
+                        winsound.Beep(880, 80)
+                        time.sleep(0.03)
+                        winsound.Beep(1320, 140)
+                    except Exception:
+                        pass
+
+                    command_text = stt.listen_and_transcribe(timeout=6, phrase_time_limit=12) or ""
+
+                if command_text.strip():
+                    sync_voice_state("thinking", f"Processing: '{command_text}'")
+                    logger.info(f"Processing voice command: '{command_text}'")
+                    lower_cmd = command_text.strip().lower()
+                    if lower_cmd in ["stop", "stop talking", "stop reading", "be quiet", "shut up", "cancel", "quiet", "halt"]:
+                        tts.stop()
+                        resp_text = "Stopped, boss."
+                    else:
+                        resp = dadus_agent.process_input(command_text, session_id="tray_voice_session")
+                        resp_text = resp.text
+
+                    sync_voice_state("speaking", resp_text)
+                    logger.info(f"DADUS response: '{resp_text}'")
+                    tts.speak(resp_text, async_mode=False)
+        finally:
+            sync_voice_state("idle", "Standing by...")
+            _wake_lock.release()
+
+    # 2. Register global hotkey (Alt + Shift + D)
+    global_hotkey.start(lambda: on_wake(""))
+
+    # 3. Start background wakeword listener
+    wakeword.start_listening(on_wake)
+
+    # 4. Start System Tray icon
+    shutdown_event = threading.Event()
+
+    def on_tray_exit():
+        logger.info("Shutting down from tray menu...")
+        shutdown_event.set()
+
+    dadus_tray.start(on_exit=on_tray_exit)
+
+    # Voice confirmation of startup
+    try:
+        tts.speak("DADUS background daemon active, boss. Press Alt Shift D or say Hey Dadus anytime.", async_mode=False)
+    except Exception:
+        pass
+
+    try:
+        while not shutdown_event.is_set():
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received.")
+    finally:
+        logger.info("Stopping all background services...")
+        wakeword.stop_listening()
+        global_hotkey.stop()
+        dadus_tray.stop()
+        audio_ducker.restore()
+        logger.info("DADUS shutdown complete.")
 
 def main() -> None:
     """Parse arguments and start DADUS components."""
     parser = argparse.ArgumentParser(description="DADUS Personal AI Assistant")
-    parser.add_argument("--mode", choices=["web", "voice", "cli"], default=None, help="Operating mode: web, voice, or cli")
+    parser.add_argument("--mode", choices=["web", "voice", "cli", "tray"], default=None, help="Operating mode: web, voice, cli, or tray")
     parser.add_argument("--cli", action="store_true", help="Start in interactive CLI mode")
     parser.add_argument("--voice", action="store_true", help="Start continuous voice wake-word monitoring")
+    parser.add_argument("--tray", action="store_true", help="Start silently in Windows System Tray with global hotkey and background wake listener")
     parser.add_argument("--window", action="store_true", help="Launch in dedicated desktop window")
     parser.add_argument("--host", default=settings.API_HOST, help="API server host")
     parser.add_argument("--port", type=int, default=settings.API_PORT, help="API server port")
@@ -139,7 +284,12 @@ def main() -> None:
 
     logger.info(f"Initialized {settings.PRODUCT_NAME} v1.0.0")
 
-    # 2. Start API Server in background thread if CLI or voice mode requested
+    # 2. System Tray Daemon mode
+    if args.tray or args.mode == "tray":
+        run_tray_mode(args.host, args.port)
+        return
+
+    # 3. Start API Server in background thread if CLI or voice mode requested
     if args.cli or args.mode == "cli":
         server_thread = threading.Thread(
             target=start_api_server,
@@ -160,12 +310,39 @@ def main() -> None:
         run_voice_loop()
         return
 
-    # 3. Default: Launch Web / Desktop UI mode
+    # 4. Default: Launch Web / Desktop UI mode
+    import socket
+    def is_port_busy(h: str, p: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            return s.connect_ex((h, p)) == 0
+
+    if is_port_busy(args.host, args.port):
+        # Check if DADUS is already active and responding
+        try:
+            import urllib.request
+            req = urllib.request.urlopen(f"http://{args.host}:{args.port}/api/status", timeout=1.0)
+            if req.status == 200:
+                logger.info(f"DADUS API Server is already active on http://{args.host}:{args.port}.")
+                if not args.no_browser:
+                    open_ui(use_webview=args.window, port=args.port)
+                return
+        except Exception:
+            pass
+
+        # If port is held by an unknown process, try next fallback port
+        orig = args.port
+        for fp in [8001, 8002, 8080]:
+            if not is_port_busy(args.host, fp):
+                args.port = fp
+                logger.info(f"Port {orig} was occupied; dynamically bound DADUS to http://{args.host}:{args.port}")
+                break
+
     if not args.no_browser:
         # Schedule browser / window launch after server boots
         def _open_later():
             time.sleep(1.2)
-            open_ui(use_webview=args.window)
+            open_ui(use_webview=args.window, port=args.port)
 
         threading.Thread(target=_open_later, daemon=True).start()
 

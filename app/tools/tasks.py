@@ -159,6 +159,48 @@ class CompleteTaskTool(BaseTool):
         )
 
 # ==========================================
+# Tool: delete_task
+# ==========================================
+class DeleteTaskInput(BaseModel):
+    task_id_or_title: str = Field(description="ID or title of the task to delete")
+
+class DeleteTaskTool(BaseTool):
+    name = "delete_task"
+    description = "Deletes a task by ID or title from your task list."
+    permission_level = PermissionLevel.SAFE
+    args_schema = DeleteTaskInput
+
+    def execute(self, task_id_or_title: str) -> ToolResult:
+        query_val = task_id_or_title.strip()
+        with get_db_context() as db:
+            task = None
+            if query_val.isdigit():
+                task = db.query(TaskItem).filter(TaskItem.id == int(query_val)).first()
+            if not task:
+                task = db.query(TaskItem).filter(TaskItem.title.ilike(f"%{query_val}%")).first()
+
+            if not task:
+                return ToolResult(
+                    tool_name=self.name,
+                    success=False,
+                    message=f"Boss, I couldn't find a task matching '{query_val}' to delete.",
+                    error="TASK_NOT_FOUND"
+                )
+
+            task_title = task.title
+            task_id = task.id
+            db.delete(task)
+            db.flush()
+
+        logger.info(f"Deleted task {task_id}: '{task_title}'")
+        return ToolResult(
+            tool_name=self.name,
+            success=True,
+            message=f"Deleted task '{task_title}', boss.",
+            data={"id": task_id, "title": task_title, "status": "deleted"}
+        )
+
+# ==========================================
 # Tool: get_daily_briefing
 # ==========================================
 class GetDailyBriefingInput(BaseModel):

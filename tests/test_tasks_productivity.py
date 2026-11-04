@@ -1,7 +1,7 @@
 """Tests for personal productivity, tasks, recurring reminders, and briefing."""
 from datetime import datetime, timedelta
 import pytest
-from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, GetDailyBriefingTool
+from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, DeleteTaskTool, GetDailyBriefingTool
 from app.tools.reminders import CreateReminderTool
 from app.productivity.reminder_daemon import ReminderDaemon
 from app.database.database import get_db_context
@@ -33,6 +33,26 @@ def test_complete_task():
     list_tool = ListTasksTool()
     res_list = list_tool.execute(status="pending")
     assert not any(t["id"] == task_id for t in res_list.data["tasks"])
+
+def test_delete_task():
+    create_tool = CreateTaskTool()
+    res = create_tool.execute(title="Task to be deleted", priority="low")
+    task_id = res.data["id"]
+
+    del_tool = DeleteTaskTool()
+    res_del = del_tool.execute(task_id_or_title=str(task_id))
+    assert res_del.success is True
+    assert "Deleted task" in res_del.message
+
+    # Verify task no longer exists
+    list_tool = ListTasksTool()
+    res_list = list_tool.execute(status="all")
+    assert not any(t["id"] == task_id for t in res_list.data["tasks"])
+
+    # Deleting again should return not found error
+    res_del_again = del_tool.execute(task_id_or_title=str(task_id))
+    assert res_del_again.success is False
+    assert res_del_again.error == "TASK_NOT_FOUND"
 
 def test_daily_briefing():
     tool = GetDailyBriefingTool()

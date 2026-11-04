@@ -122,3 +122,25 @@ class AuditLog(Base):
             "status": self.status,
             "result_summary": self.result_summary
         }
+
+
+class Contact(Base):
+    """Stores user contacts for voice calling, messaging, and communication."""
+    __tablename__ = "contacts"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(255), nullable=False, index=True)
+    phone = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True)
+    relationship = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "phone": self.phone,
+            "email": self.email,
+            "relationship": self.relationship,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }

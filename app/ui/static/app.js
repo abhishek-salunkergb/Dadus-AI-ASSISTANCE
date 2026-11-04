@@ -1,561 +1,933 @@
-/* ========================================================
-   DADUS - Personal AI Operating Assistant Frontend Logic
-   ======================================================== */
+/**
+ * ============================================================================
+ * DADUS — Holographic AI Master Controller (app.js)
+ * ----------------------------------------------------------------------------
+ * Connects Three.js WebGL Hologram, Web Speech Recognition, Audio FFT,
+ * and Backend REST & WebSocket APIs (/api/chat, /ws/voice-state, /api/confirm, etc.)
+ * ============================================================================
+ */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // DOM Elements
-  const messagesContainer = document.getElementById('messagesContainer');
-  const chatForm = document.getElementById('chatForm');
-  const userInput = document.getElementById('userInput');
-  const micBtn = document.getElementById('micBtn');
-  const voiceWave = document.getElementById('voiceWave');
-  const audioPlayer = document.getElementById('audioPlayer');
-  const liveStatusBadge = document.getElementById('liveStatusBadge');
+
+  // ==========================================================================
+  // 1. DOM References
+  // ==========================================================================
+  const navItems = document.querySelectorAll('.nav-btn, .nav-item');
+  const panelViews = document.querySelectorAll('.panel-view');
+  const navHome = document.getElementById('navHome');
+  const currentViewTitle = document.getElementById('currentViewTitle');
+  const currentViewSubtitle = document.getElementById('currentViewSubtitle');
+
+  const heroMicBtn = document.getElementById('heroMicBtn');
+  const commandForm = document.getElementById('commandForm');
+  const commandInput = document.getElementById('commandInput');
+  const ttsAudioPlayer = document.getElementById('ttsAudioPlayer');
+
+  const handsFreeBtn = document.getElementById('handsFreeBtn');
+  const handsFreeLabel = document.getElementById('handsFreeLabel');
   const ttsToggleBtn = document.getElementById('ttsToggleBtn');
-  const confirmationBanner = document.getElementById('confirmationBanner');
-  const confirmationMessage = document.getElementById('confirmationMessage');
-  const confirmYesBtn = document.getElementById('confirmYesBtn');
-  const confirmNoBtn = document.getElementById('confirmNoBtn');
-  const clarificationBanner = document.getElementById('clarificationBanner');
-  const clarificationPrompt = document.getElementById('clarificationPrompt');
-  const clarificationOptions = document.getElementById('clarificationOptions');
+  const ttsToggleLabel = document.getElementById('ttsToggleLabel');
+  const ttsIcon = document.getElementById('ttsIcon');
+  const interruptBtn = document.getElementById('interruptBtn');
 
+  const stateDot = document.getElementById('stateDot');
+  const stateLabel = document.getElementById('stateLabel');
+  const statePing = document.getElementById('statePing');
+  const greetingText = document.getElementById('greetingText');
+  const dynamicTranscript = document.getElementById('dynamicTranscript');
+  const audioWaveVisualizer = document.getElementById('audioWaveVisualizer');
+  const optionsContainer = document.getElementById('optionsContainer');
+  const hologramStage = document.getElementById('hologramStage');
+
+  const dialogueStream = document.getElementById('dialogueStream');
+  const clearChatBtn = document.getElementById('clearChatBtn');
+
+  const scheduleItemsList = document.getElementById('scheduleItemsList');
+  const pendingTasksList = document.getElementById('pendingTasksList');
+  const activeRemindersList = document.getElementById('activeRemindersList');
+  const createTaskForm = document.getElementById('createTaskForm');
+  const newTaskTitle = document.getElementById('newTaskTitle');
+  const refreshTasksBtn = document.getElementById('refreshTasksBtn');
+
+  const memoryStoreForm = document.getElementById('memoryStoreForm');
+  const memoryKeyInput = document.getElementById('memoryKey');
+  const memoryValueInput = document.getElementById('memoryValue');
+  const memoryCategorySelect = document.getElementById('memoryCategory');
+  const memoryCardsList = document.getElementById('memoryCardsList');
+  const searchMemoryInput = document.getElementById('searchMemoryInput');
+  const refreshMemoryBtn = document.getElementById('refreshMemoryBtn');
+
+  const auditLogsBody = document.getElementById('auditLogsBody');
+  const refreshLogsBtn = document.getElementById('refreshLogsBtn');
+
+  const toolsGrid = document.getElementById('toolsGrid');
+  const toolStatsBadge = document.getElementById('toolStatsBadge');
+
+  const confirmModal = document.getElementById('confirmModal');
+  const confirmPrompt = document.getElementById('confirmPrompt');
+  const modalApproveBtn = document.getElementById('modalApproveBtn');
+  const modalRejectBtn = document.getElementById('modalRejectBtn');
+
+  // ==========================================================================
+  // 2. Application State
+  // ==========================================================================
   let audioEnabled = true;
+  let handsFreeEnabled = true;
   let activeConfirmationId = null;
+  const sessionId = 'session_' + Math.random().toString(36).substring(2, 9);
+  let memoryCache = [];
 
-  // Tab Navigation
-  document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      const tabId = `tab-${btn.dataset.tab}`;
-      const pane = document.getElementById(tabId);
-      if (pane) pane.classList.add('active');
+  // Set Dynamic Contextual Greeting
+  function updateGreeting() {
+    if (!greetingText) return;
+    const hour = new Date().getHours();
+    let timeGreeting = "Good evening";
+    if (hour >= 5 && hour < 12) timeGreeting = "Good morning";
+    else if (hour >= 12 && hour < 17) timeGreeting = "Good afternoon";
+    greetingText.textContent = `${timeGreeting}, Boss.`;
+  }
+  updateGreeting();
 
-      if (btn.dataset.tab === 'schedule') loadSchedule();
-      if (btn.dataset.tab === 'memory') loadMemories();
-      if (btn.dataset.tab === 'audit') loadAuditLogs();
-      if (btn.dataset.tab === 'mcp') loadMcpTools();
-    });
-  });
-
-  // Toggle Audio
-  ttsToggleBtn.addEventListener('click', () => {
-    audioEnabled = !audioEnabled;
-    ttsToggleBtn.classList.toggle('active', audioEnabled);
-    ttsToggleBtn.querySelector('.btn-label').textContent = audioEnabled ? 'Audio On' : 'Audio Off';
-  });
-
-  // Quick Command Chips
-  document.querySelectorAll('.command-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      userInput.value = chip.dataset.cmd;
-      chatForm.dispatchEvent(new Event('submit'));
-    });
-  });
-
-  // Update Status Badge
-  function setStatus(statusText, className) {
-    liveStatusBadge.className = `status-badge ${className}`;
-    liveStatusBadge.querySelector('.badge-label').textContent = statusText;
+  // ==========================================================================
+  // 3. Initialize 3D Voxel Hologram Engine
+  // ==========================================================================
+  let dadusOrb = null;
+  if (window.DadusHolographicOrb && document.getElementById('dadusOrbCanvas')) {
+    dadusOrb = new DadusHolographicOrb('dadusOrbCanvas');
   }
 
-  // Append Message to UI
-  function appendMessage(text, role, toolData = null) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${role}-message`;
-
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    avatar.textContent = role === 'user' ? 'U' : 'D';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble';
-    
-    const p = document.createElement('p');
-    p.textContent = text;
-    bubble.appendChild(p);
-
-    if (toolData && toolData.tool_called) {
-      const tbadge = document.createElement('div');
-      tbadge.className = 'tool-badge';
-      tbadge.innerHTML = `<span>⚡ Tool: <strong>${escapeHtml(toolData.tool_called)}</strong></span>`;
-      bubble.appendChild(tbadge);
+  function setSystemState(state, customText = null) {
+    if (dadusOrb) {
+      dadusOrb.setState(state);
     }
 
-    msgDiv.appendChild(avatar);
-    msgDiv.appendChild(bubble);
-    messagesContainer.appendChild(msgDiv);
+    if (stateLabel && stateDot) {
+      stateLabel.textContent = state.toUpperCase();
 
-    // Scroll to bottom
-    const viewport = document.querySelector('.chat-viewport');
-    viewport.scrollTop = viewport.scrollHeight;
+      if (state === 'listening') {
+        stateDot.style.background = '#00f0ff';
+        stateDot.style.boxShadow = '0 0 10px #00f0ff';
+        heroMicBtn.className = 'console-mic-btn listening';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.add('active');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+      } else if (state === 'thinking') {
+        stateDot.style.background = '#a855f7';
+        stateDot.style.boxShadow = '0 0 10px #a855f7';
+        heroMicBtn.className = 'console-mic-btn thinking';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.add('active');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+      } else if (state === 'executing') {
+        stateDot.style.background = '#0077ff';
+        stateDot.style.boxShadow = '0 0 10px #0077ff';
+        heroMicBtn.className = 'console-mic-btn thinking';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.add('active');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+      } else if (state === 'speaking') {
+        stateDot.style.background = '#ec4899';
+        stateDot.style.boxShadow = '0 0 10px #ec4899';
+        heroMicBtn.className = 'console-mic-btn speaking';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.add('active');
+        if (interruptBtn) interruptBtn.style.display = 'inline-flex';
+      } else if (state === 'error') {
+        stateDot.style.background = '#f43f5e';
+        stateDot.style.boxShadow = '0 0 10px #f43f5e';
+        heroMicBtn.className = 'console-mic-btn';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.remove('active');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+      } else if (state === 'success') {
+        stateDot.style.background = '#10b981';
+        stateDot.style.boxShadow = '0 0 10px #10b981';
+        heroMicBtn.className = 'console-mic-btn';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.remove('active');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+      } else {
+        // Idle
+        stateDot.style.background = '#00f0ff';
+        stateDot.style.boxShadow = '0 0 8px #00f0ff';
+        heroMicBtn.className = 'console-mic-btn';
+        if (audioWaveVisualizer) audioWaveVisualizer.classList.remove('active');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+      }
+    }
+
+    if (customText && dynamicTranscript) {
+      dynamicTranscript.innerHTML = customText;
+    }
   }
 
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-
-  // Send Chat Message
-  async function sendMessage(text) {
-    if (!text.trim()) return;
-
-    appendMessage(text, 'user');
-    userInput.value = '';
-    setStatus('Understanding...', 'status-understanding');
+  // ==========================================================================
+  // 4. WebSocket Live Voice-State Synchronization
+  // ==========================================================================
+  function initWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/voice-state`;
+    let ws = null;
 
     try {
-      const resp = await fetch('/api/chat', {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        if (statePing) statePing.textContent = 'NEURAL LINK ACTIVE';
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'state') {
+            setSystemState(data.state, data.text || null);
+          }
+        } catch (e) {}
+      };
+
+      ws.onclose = () => {
+        if (statePing) statePing.textContent = 'STANDBY';
+        setTimeout(initWebSocket, 3000);
+      };
+
+      ws.onerror = () => {
+        if (ws) ws.close();
+      };
+    } catch (err) {
+      console.warn('[DADUS] WebSocket not available, relying on REST polling.');
+    }
+  }
+  initWebSocket();
+
+  // ==========================================================================
+  // 5. Dual Siri Chime Synthesis
+  // ==========================================================================
+  function playSiriChime(type = 'wake') {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = audioCtx.currentTime;
+
+      if (type === 'wake') {
+        // Rising dual bell chime (880Hz -> 1320Hz)
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, now);
+        osc1.frequency.exponentialRampToValueAtTime(1320, now + 0.14);
+
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(1760, now);
+
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.3);
+        osc2.stop(now + 0.3);
+      } else {
+        // Soft fallback chime (660Hz -> 440Hz)
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(660, now);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.16);
+
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.24);
+      }
+    } catch (e) {}
+  }
+
+  // ==========================================================================
+  // 6. Web Speech Recognition Architecture (Hands-Free "Hey Dadus")
+  // ==========================================================================
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isListening = false;
+  let isRecognitionRunning = false;
+  let restartTimeout = null;
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      isRecognitionRunning = true;
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const text = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += text;
+        } else {
+          interim += text;
+        }
+      }
+
+      const activeText = (finalTranscript || interim).trim();
+      const lower = activeText.toLowerCase();
+
+      // Wake-words
+      const wakeWords = ['hey dadus', 'ok dadus', 'hi dadus', 'dadus'];
+      const matched = wakeWords.find(w => lower.includes(w));
+
+      if (matched && !isListening) {
+        isListening = true;
+        playSiriChime('wake');
+        setSystemState('listening', `I am listening, Boss... <em>"${activeText}"</em>`);
+      } else if (isListening) {
+        setSystemState('listening', `Listening: <em>"${activeText}"</em>`);
+      }
+
+      if (finalTranscript && isListening) {
+        let command = finalTranscript.trim();
+        for (const wp of wakeWords) {
+          if (command.toLowerCase().startsWith(wp)) {
+            command = command.substring(wp.length).replace(/^[,\s]+/, '');
+            break;
+          }
+        }
+
+        if (command) {
+          dispatchUserCommand(command);
+        }
+        isListening = false;
+      }
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== 'no-speech') {
+        console.warn('[Speech Recognition] Notice:', e.error);
+      }
+    };
+
+    recognition.onend = () => {
+      isRecognitionRunning = false;
+      if (handsFreeEnabled) {
+        clearTimeout(restartTimeout);
+        restartTimeout = setTimeout(() => {
+          try {
+            if (!isRecognitionRunning && handsFreeEnabled) {
+              recognition.start();
+            }
+          } catch (e) {}
+        }, 300);
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {}
+  }
+
+  function startManualSpeech() {
+    isListening = true;
+    playSiriChime('wake');
+    setSystemState('listening', 'Listening for your command...');
+
+    if (recognition && !isRecognitionRunning) {
+      try {
+        recognition.start();
+      } catch (e) {}
+    } else if (!SpeechRecognition) {
+      // Backend Push-to-Talk fallback
+      triggerBackendListen();
+    }
+  }
+
+  async function triggerBackendListen() {
+    setSystemState('listening', 'Microphone active. Speak now...');
+    try {
+      const res = await fetch('/api/voice/listen', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.transcription) {
+        dispatchUserCommand(data.transcription);
+      } else {
+        setSystemState('idle', 'Boss, I could not detect any speech.');
+      }
+    } catch (e) {
+      setSystemState('idle', 'Voice input standby.');
+    }
+  }
+
+  // Hero Mic Button Click
+  if (heroMicBtn) {
+    heroMicBtn.addEventListener('click', () => {
+      startManualSpeech();
+    });
+  }
+
+  // Tap 3D Stage to Speak
+  if (hologramStage) {
+    hologramStage.addEventListener('click', (e) => {
+      if (!dadusOrb || !dadusOrb.isDragging) {
+        startManualSpeech();
+      }
+    });
+  }
+
+  // Interrupt Speech Button
+  if (interruptBtn) {
+    interruptBtn.addEventListener('click', () => {
+      if (ttsAudioPlayer) {
+        ttsAudioPlayer.pause();
+        ttsAudioPlayer.currentTime = 0;
+      }
+      setSystemState('idle', 'Speech interrupted, Boss.');
+      interruptBtn.style.display = 'none';
+    });
+  }
+
+  // ==========================================================================
+  // 7. Command Execution & API Gateway (/api/chat)
+  // ==========================================================================
+  async function dispatchUserCommand(command) {
+    if (!command || !command.trim()) return;
+
+    command = command.trim();
+    appendDialogue('user', command);
+    setSystemState('thinking', `Processing request: <em>"${command}"</em>`);
+
+    // Clear previous disambiguation options
+    if (optionsContainer) {
+      optionsContainer.innerHTML = '';
+      optionsContainer.style.display = 'none';
+    }
+
+    try {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: text,
-          session_id: 'desktop_ui',
+          message: command,
+          session_id: sessionId,
           speak_response: audioEnabled
         })
       });
 
-      const data = await resp.json();
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`);
+      }
 
-      // Check if confirmation is required
+      const data = await response.json();
+
+      // Check if Confirmation is required for sensitive operation
       if (data.needs_confirmation) {
-        setStatus('Waiting for confirmation...', 'status-confirmation');
         activeConfirmationId = data.confirmation_id;
-        confirmationMessage.textContent = data.text;
-        confirmationBanner.classList.remove('hidden');
+        showConfirmationModal(data.text);
+        setSystemState('idle', data.text);
+        appendDialogue('assistant', data.text, data.tool_called);
+        return;
+      }
+
+      // Check if Clarification / Disambiguation Options returned
+      if (data.needs_clarification && data.options && data.options.length > 0) {
+        renderClarificationOptions(data.options);
+      }
+
+      // Handle assistant response
+      appendDialogue('assistant', data.text, data.tool_called, data.tool_result);
+      setSystemState('speaking', data.text);
+
+      // Automatically launch web link in user browser tab (e.g. YouTube, Spotify, Web apps)
+      if (data.tool_result && data.tool_result.data) {
+        const resData = data.tool_result.data;
+        const targetUrl = resData.url || (resData.mode === 'browser_fallback' ? resData.target : null);
+        if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+          try {
+            window.open(targetUrl, '_blank');
+          } catch (e) {
+            console.warn('[DADUS] Window open blocked by browser popup manager:', e);
+          }
+        }
+      }
+
+      // Play synthesized audio if returned
+      if (data.audio_url && audioEnabled && ttsAudioPlayer) {
+        ttsAudioPlayer.src = data.audio_url;
+        ttsAudioPlayer.play().catch(() => {});
+
+        if (dadusOrb) {
+          dadusOrb.attachAudioElement(ttsAudioPlayer);
+        }
+
+        ttsAudioPlayer.onended = () => {
+          setSystemState('idle');
+          if (interruptBtn) interruptBtn.style.display = 'none';
+        };
       } else {
-        confirmationBanner.classList.add('hidden');
-      }
-
-      // Check if clarification is needed (e.g. music apps)
-      if (data.needs_clarification && data.options) {
-        setStatus('Waiting for choice...', 'status-understanding');
-        clarificationPrompt.textContent = data.text;
-        clarificationOptions.innerHTML = '';
-        data.options.forEach(opt => {
-          const optBtn = document.createElement('button');
-          optBtn.className = 'option-btn';
-          optBtn.textContent = opt;
-          optBtn.addEventListener('click', () => {
-            clarificationBanner.classList.add('hidden');
-            sendMessage(opt);
-          });
-          clarificationOptions.appendChild(optBtn);
-        });
-        clarificationBanner.classList.remove('hidden');
-      } else {
-        clarificationBanner.classList.add('hidden');
-      }
-
-      // Display response
-      appendMessage(data.text, 'assistant', { tool_called: data.tool_called });
-
-      // Play audio if available and audio enabled
-      if (audioEnabled && data.audio_url) {
-        audioPlayer.src = data.audio_url;
-        audioPlayer.play().catch(e => console.log('Audio autoplay prevented:', e));
-      }
-
-      if (!data.needs_confirmation && !data.needs_clarification) {
-        setStatus('Ready', 'status-ready');
+        const timeoutDuration = Math.min(8000, Math.max(3500, (data.text || '').length * 60));
+        setTimeout(() => setSystemState('idle'), timeoutDuration);
       }
 
     } catch (err) {
-      console.error('API error:', err);
-      appendMessage('Boss, I had trouble connecting to the backend service.', 'assistant');
-      setStatus('Error', 'status-confirmation');
+      console.error('[DADUS] Command execution failed:', err);
+      const errMsg = "Boss, I encountered a temporary connection error. Please try again.";
+      appendDialogue('assistant', errMsg);
+      setSystemState('error', errMsg);
+      setTimeout(() => setSystemState('idle'), 4000);
     }
   }
 
-  // Handle Form Submit
-  chatForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    sendMessage(userInput.value);
-  });
+  // Render Disambiguation / Clarification Options Chips
+  function renderClarificationOptions(options) {
+    if (!optionsContainer) return;
+    optionsContainer.innerHTML = '';
+    optionsContainer.style.display = 'flex';
 
-  // Handle Confirmation Buttons
-  confirmYesBtn.addEventListener('click', async () => {
-    if (!activeConfirmationId) return;
-    confirmationBanner.classList.add('hidden');
-    setStatus('Executing...', 'status-executing');
-
-    try {
-      const resp = await fetch('/api/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation_id: activeConfirmationId, confirmed: true })
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'clarification-btn';
+      btn.textContent = opt;
+      btn.addEventListener('click', () => {
+        optionsContainer.style.display = 'none';
+        dispatchUserCommand(opt);
       });
-      const data = await resp.json();
-      appendMessage(data.message, 'assistant');
-      setStatus('Ready', 'status-ready');
-    } catch (err) {
-      setStatus('Error', 'status-confirmation');
-    }
-  });
-
-  confirmNoBtn.addEventListener('click', async () => {
-    if (!activeConfirmationId) return;
-    confirmationBanner.classList.add('hidden');
-    try {
-      const resp = await fetch('/api/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation_id: activeConfirmationId, confirmed: false })
-      });
-      const data = await resp.json();
-      appendMessage(data.message, 'assistant');
-      setStatus('Ready', 'status-ready');
-    } catch (err) {
-      setStatus('Ready', 'status-ready');
-    }
-  });
-
-  // Push to Talk / Mic Button - Real-Time Streaming Speech Recognition (like ChatGPT Voice)
-  let speechRecognizer = null;
-  let isRecording = false;
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if (SpeechRecognition) {
-    speechRecognizer = new SpeechRecognition();
-    speechRecognizer.continuous = false;
-    speechRecognizer.interimResults = true;
-    speechRecognizer.lang = 'en-US';
-
-    speechRecognizer.onstart = () => {
-      isRecording = true;
-      micBtn.classList.add('recording');
-      voiceWave.classList.remove('hidden');
-      setStatus('Listening to your voice...', 'status-listening');
-    };
-
-    speechRecognizer.onresult = (event) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
-      }
-
-      // Stream words live into the input box as you speak!
-      userInput.value = finalTranscript || interimTranscript;
-
-      if (finalTranscript.trim()) {
-        speechRecognizer.stop();
-        sendMessage(finalTranscript.trim());
-      }
-    };
-
-    speechRecognizer.onerror = (event) => {
-      console.warn('Speech recognition status:', event.error);
-      micBtn.classList.remove('recording');
-      voiceWave.classList.add('hidden');
-      setStatus('Ready', 'status-ready');
-      isRecording = false;
-    };
-
-    speechRecognizer.onend = () => {
-      micBtn.classList.remove('recording');
-      voiceWave.classList.add('hidden');
-      setStatus('Ready', 'status-ready');
-      isRecording = false;
-    };
+      optionsContainer.appendChild(btn);
+    });
   }
 
-  micBtn.addEventListener('click', async () => {
-    if (speechRecognizer) {
-      if (isRecording) {
-        speechRecognizer.stop();
-      } else {
-        userInput.value = '';
-        try {
-          speechRecognizer.start();
-        } catch (e) {
-          console.warn('Speech recognition start failed, restarting:', e);
-        }
-      }
-      return;
-    }
+  // Append Message to Dialogue View
+  function appendDialogue(role, text, toolCalled = null, toolResult = null) {
+    if (!dialogueStream) return;
 
-    // Hardware/Backend fallback if browser has no native speech API
-    micBtn.classList.add('recording');
-    voiceWave.classList.remove('hidden');
-    setStatus('Listening (Hardware Mic)...', 'status-listening');
+    const card = document.createElement('div');
+    card.className = `dialogue-card ${role}`;
 
-    try {
-      const resp = await fetch('/api/voice/listen', { method: 'POST' });
-      const data = await resp.json();
-
-      micBtn.classList.remove('recording');
-      voiceWave.classList.add('hidden');
-
-      if (data.success && data.transcription) {
-        appendMessage(data.transcription, 'user');
-        if (data.response) {
-          appendMessage(data.response.text, 'assistant', { tool_called: data.response.tool_called });
-        }
-        setStatus('Ready', 'status-ready');
-      } else {
-        setStatus('Ready', 'status-ready');
-      }
-    } catch (err) {
-      micBtn.classList.remove('recording');
-      voiceWave.classList.add('hidden');
-      setStatus('Ready', 'status-ready');
-    }
-  });
-
-  // Media Dock Buttons
-  document.getElementById('mediaPlayPauseBtn')?.addEventListener('click', () => {
-    sendMessage('pause the music');
-  });
-
-  document.getElementById('mediaSkipBtn')?.addEventListener('click', () => {
-    sendMessage('skip this song');
-  });
-
-  document.getElementById('volDownBtn')?.addEventListener('click', () => {
-    sendMessage('make the volume slightly lower');
-  });
-
-  document.getElementById('volUpBtn')?.addEventListener('click', () => {
-    sendMessage('increase the volume');
-  });
-
-  // Morning Briefing Button
-  document.getElementById('briefingBtn')?.addEventListener('click', () => {
-    sendMessage('give me my morning briefing');
-  });
-
-  // Load Tasks
-  async function loadTasks() {
-    const tList = document.getElementById('tasksList');
-    const badge = document.getElementById('taskCountBadge');
-    tList.innerHTML = '<li class="loading-item">Fetching tasks...</li>';
-
-    try {
-      const resp = await fetch('/api/tasks?status=pending');
-      const data = await resp.json();
-      const tasks = data.tasks || [];
-      if (badge) badge.textContent = tasks.length;
-
-      if (tasks.length === 0) {
-        tList.innerHTML = '<li class="loading-item">No pending tasks, boss.</li>';
-      } else {
-        tList.innerHTML = tasks.map(t => {
-          const prioClass = `prio-${t.priority}`;
-          const dueStr = t.due_date ? `<span class="task-due">Due: ${new Date(t.due_date).toLocaleDateString()}</span>` : '';
-          return `
-            <li class="schedule-item-row task-row">
-              <div class="task-info">
-                <span class="prio-tag ${prioClass}">[${escapeHtml(t.priority.toUpperCase())}]</span>
-                <span class="item-title">${escapeHtml(t.title)}</span>
-                ${dueStr}
-              </div>
-              <button class="task-complete-btn" data-id="${t.id}" title="Mark Complete">✓</button>
-            </li>
-          `;
-        }).join('');
-
-        document.querySelectorAll('.task-complete-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const taskId = btn.dataset.id;
-            await fetch(`/api/tasks/${taskId}/complete`, { method: 'POST' });
-            loadTasks();
-          });
-        });
-      }
-    } catch (e) {
-      tList.innerHTML = '<li class="loading-item">Failed to load tasks.</li>';
-    }
-  }
-
-  // Load Schedule, Reminders & Tasks
-  async function loadSchedule() {
-    loadTasks();
-    const remList = document.getElementById('remindersList');
-    const evtList = document.getElementById('eventsList');
-    const remBadge = document.getElementById('reminderCountBadge');
-    const evtBadge = document.getElementById('scheduleCountBadge');
-
-    remList.innerHTML = '<li class="loading-item">Fetching reminders...</li>';
-    evtList.innerHTML = '<li class="loading-item">Fetching schedule...</li>';
-
-    try {
-      const resp = await fetch('/api/schedule');
-      const data = await resp.json();
-
-      if (remBadge) remBadge.textContent = data.reminders.length;
-      if (evtBadge) evtBadge.textContent = data.schedule_items.length;
-
-      if (data.reminders.length === 0) {
-        remList.innerHTML = '<li class="loading-item">No active reminders.</li>';
-      } else {
-        remList.innerHTML = data.reminders.map(r => `
-          <li class="schedule-item-row">
-            <div class="item-title">${escapeHtml(r.title)}</div>
-            <div class="item-time">⏰ ${new Date(r.target_time).toLocaleString()} ${r.recurrence !== 'none' ? `(${r.recurrence})` : ''}</div>
-          </li>
-        `).join('');
-      }
-
-      if (data.schedule_items.length === 0) {
-        evtList.innerHTML = '<li class="loading-item">No schedule items today.</li>';
-      } else {
-        evtList.innerHTML = data.schedule_items.map(s => `
-          <li class="schedule-item-row">
-            <div class="item-title">${escapeHtml(s.title)}</div>
-            <div class="item-time">📅 ${new Date(s.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-          </li>
-        `).join('');
-      }
-    } catch (e) {
-      remList.innerHTML = '<li class="loading-item">Failed to load schedule.</li>';
-    }
-  }
-
-  // Load Memories
-  async function loadMemories() {
-    const memList = document.getElementById('memoryList');
-    memList.innerHTML = '<div class="loading-item">Fetching memories...</div>';
-
-    try {
-      const resp = await fetch('/api/memory');
-      const data = await resp.json();
-
-      if (data.memories.length === 0) {
-        memList.innerHTML = '<div class="loading-item">No stored memories yet. Tell DADUS "Remember that I prefer Spotify"</div>';
-      } else {
-        memList.innerHTML = data.memories.map(m => `
-          <div class="memory-row">
-            <div>
-              <div class="memory-key">${escapeHtml(m.key)} <span class="badge">(${escapeHtml(m.category)})</span></div>
-              <div class="memory-val">${escapeHtml(m.value)}</div>
-            </div>
-            <button class="memory-del-btn" data-key="${escapeHtml(m.key)}">✕</button>
-          </div>
-        `).join('');
-
-        document.querySelectorAll('.memory-del-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            await fetch(`/api/memory/${encodeURIComponent(btn.dataset.key)}`, { method: 'DELETE' });
-            loadMemories();
-          });
-        });
-      }
-    } catch (e) {
-      memList.innerHTML = '<div class="loading-item">Failed to load memories.</div>';
-    }
-  }
-
-  // Load Audit Logs
-  async function loadAuditLogs() {
-    const tbody = document.getElementById('auditTableBody');
-    tbody.innerHTML = '<tr><td colspan="6" class="loading-item">Fetching audit history...</td></tr>';
-
-    try {
-      const resp = await fetch('/api/logs?limit=25');
-      const data = await resp.json();
-
-      if (data.logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="loading-item">No tool activity logged yet.</td></tr>';
-      } else {
-        tbody.innerHTML = data.logs.map(l => {
-          let tagClass = 'tag-success';
-          if (l.status === 'BLOCKED' || l.status === 'FAILED') tagClass = 'tag-blocked';
-          if (l.status === 'CONFIRMATION_REQUIRED') tagClass = 'tag-pending';
-
-          return `
-            <tr>
-              <td>${new Date(l.timestamp).toLocaleTimeString()}</td>
-              <td>${escapeHtml(l.user_input)}</td>
-              <td><code>${escapeHtml(l.tool_name || 'None')}</code></td>
-              <td>${escapeHtml(l.permission_level)}</td>
-              <td><span class="status-tag ${tagClass}">${escapeHtml(l.status)}</span></td>
-              <td>${escapeHtml(l.result_summary || '')}</td>
-            </tr>
-          `;
-        }).join('');
-      }
-    } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="6" class="loading-item">Failed to load logs.</td></tr>';
-    }
-  }
-
-  // MCP Tool Management
-  let cachedMcpTools = [];
-  async function loadMcpTools() {
-    const grid = document.getElementById('mcpToolsGrid');
-    const badge = document.getElementById('mcpToolCountBadge');
-    if (!grid) return;
-
-    try {
-      const resp = await fetch('/api/mcp/tools');
-      const data = await resp.json();
-      cachedMcpTools = data.tools || [];
-      if (badge) badge.textContent = `${cachedMcpTools.length} Tools Available`;
-      renderMcpTools(cachedMcpTools);
-    } catch (err) {
-      console.error('Error fetching MCP tools:', err);
-      grid.innerHTML = '<div class="loading-item" style="color: #ef4444;">Failed to load MCP tool registry.</div>';
-    }
-  }
-
-  function renderMcpTools(tools) {
-    const grid = document.getElementById('mcpToolsGrid');
-    if (!grid) return;
-    if (!tools || tools.length === 0) {
-      grid.innerHTML = '<div class="loading-item">No tools found matching filter.</div>';
-      return;
-    }
-
-    grid.innerHTML = tools.map(tool => {
-      const schema = tool.inputSchema || {};
-      const props = Object.keys(schema.properties || {});
-      const paramStr = props.length > 0 ? props.join(', ') : 'none';
-      return `
-        <div class="mcp-tool-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-              <strong style="font-size: 0.95rem; color: var(--cyan); font-family: monospace;">${escapeHtml(tool.name)}</strong>
-              <span style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 500;">Approved</span>
-            </div>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">${escapeHtml(tool.description || 'No description provided.')}</p>
-          </div>
-          <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted);">
-            <span>Params: <code style="color: var(--text-primary);">${escapeHtml(paramStr)}</code></span>
-          </div>
+    let toolMarkup = '';
+    if (toolCalled) {
+      toolMarkup = `
+        <div class="tool-badge-pill">
+          <span>⚡ Tool: <strong>${toolCalled}</strong></span>
         </div>
       `;
-    }).join('');
+    }
+
+    card.innerHTML = `
+      <div class="card-meta">
+        <span class="badge ${role}-badge">${role.toUpperCase()}</span>
+        <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+      </div>
+      <div class="card-content">${text}</div>
+      ${toolMarkup}
+    `;
+
+    dialogueStream.appendChild(card);
+    dialogueStream.scrollTop = dialogueStream.scrollHeight;
   }
 
-  // Filter MCP Tools
-  document.getElementById('mcpSearchInput')?.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    if (!query) {
-      renderMcpTools(cachedMcpTools);
+  // Command Input Form Submit
+  if (commandForm && commandInput) {
+    commandForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = commandInput.value.trim();
+      if (val) {
+        commandInput.value = '';
+        dispatchUserCommand(val);
+      }
+    });
+  }
+
+  // Suggestion Chips Click
+  document.querySelectorAll('.chip-item').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const cmd = chip.getAttribute('data-command');
+      if (cmd) {
+        dispatchUserCommand(cmd);
+      }
+    });
+  });
+
+  // Clear Chat View
+  if (clearChatBtn && dialogueStream) {
+    clearChatBtn.addEventListener('click', () => {
+      dialogueStream.innerHTML = `
+        <div class="dialogue-card system">
+          <div class="card-meta">
+            <span class="badge system-badge">SYSTEM</span>
+            <span class="timestamp">FEED CLEARED</span>
+          </div>
+          <div class="card-content">Dialogue feed cleared. Background memory preserved.</div>
+        </div>
+      `;
+    });
+  }
+
+  // ==========================================================================
+  // 8. Navigation & Panel View Switching
+  // ==========================================================================
+  const viewTitles = {
+    home: { title: 'Core Assistant', sub: 'Autonomous Executive Intelligence' },
+    history: { title: 'Dialogue Feed', sub: 'Real-Time Message Trace & Execution History' },
+    tasks: { title: 'Agenda & Tasks', sub: 'Scheduled Events, Productivity & Reminders' },
+    memory: { title: 'Neural Memory Store', sub: 'Stored Facts, Personal Preferences & Knowledge' },
+    activity: { title: 'Activity & Audit Logs', sub: 'Cryptographic Operations & Safety Logs' },
+    tools: { title: 'MCP Tool Matrix', sub: 'Registered System Tools & External Integrations' },
+    settings: { title: 'System Configuration', sub: 'Holographic Parameters & Security Guardrails' }
+  };
+
+  function switchPanel(panelId) {
+    navItems.forEach(item => {
+      item.classList.toggle('active', item.getAttribute('data-panel') === panelId);
+    });
+
+    panelViews.forEach(panel => {
+      const match = panel.id.toLowerCase() === `panel${panelId.toLowerCase()}`;
+      panel.classList.toggle('active', match);
+    });
+
+    if (currentViewTitle && currentViewSubtitle && viewTitles[panelId]) {
+      currentViewTitle.textContent = viewTitles[panelId].title;
+      currentViewSubtitle.textContent = viewTitles[panelId].sub;
+    }
+
+    // Lazy load data for selected panel
+    if (panelId === 'tasks') loadAgendaData();
+    if (panelId === 'memory') loadMemoryData();
+    if (panelId === 'activity') loadAuditLogs();
+    if (panelId === 'tools') loadToolsMatrix();
+    if (panelId === 'home' && dadusOrb) {
+      setTimeout(() => dadusOrb._handleResize(), 50);
+    }
+  }
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const panel = item.getAttribute('data-panel');
+      switchPanel(panel);
+    });
+  });
+
+  if (navHome) {
+    navHome.addEventListener('click', () => {
+      switchPanel('home');
+    });
+  }
+
+  // ==========================================================================
+  // 9. Agenda, Tasks & Reminders Synchronization
+  // ==========================================================================
+  async function loadAgendaData() {
+    try {
+      const [scheduleRes, tasksRes] = await Promise.all([
+        fetch('/api/schedule'),
+        fetch('/api/tasks')
+      ]);
+
+      const scheduleData = await scheduleRes.json();
+      const tasksData = await tasksRes.json();
+
+      // Render Schedule Items
+      if (scheduleItemsList) {
+        const items = scheduleData.schedule_items || [];
+        scheduleItemsList.innerHTML = items.length ? items.map(item => `
+          <div class="agenda-item-card">
+            <div class="agenda-item-info">
+              <span class="agenda-item-title">${item.title}</span>
+              <span class="agenda-item-sub">${item.start_time || 'Scheduled Today'}</span>
+            </div>
+          </div>
+        `).join('') : '<div class="empty-state">No scheduled events for today.</div>';
+      }
+
+      // Render Reminders
+      if (activeRemindersList) {
+        const rems = scheduleData.reminders || [];
+        activeRemindersList.innerHTML = rems.length ? rems.map(rem => `
+          <div class="agenda-item-card">
+            <div class="agenda-item-info">
+              <span class="agenda-item-title">${rem.title}</span>
+              <span class="agenda-item-sub">${rem.target_time}</span>
+            </div>
+          </div>
+        `).join('') : '<div class="empty-state">No active reminders.</div>';
+      }
+
+      // Render Pending Tasks
+      if (pendingTasksList) {
+        const tasks = tasksData.tasks || [];
+        pendingTasksList.innerHTML = tasks.length ? tasks.map(task => `
+          <div class="agenda-item-card" data-task-id="${task.id}">
+            <div class="agenda-item-info">
+              <span class="agenda-item-title">${task.title}</span>
+              <span class="agenda-item-sub">Priority: ${task.priority || 'Normal'}</span>
+            </div>
+            <div class="agenda-item-actions">
+              <button class="task-complete-btn" title="Mark as Done" onclick="completeTask(${task.id})">✓</button>
+              <button class="task-delete-btn" title="Delete Task" onclick="deleteTask(${task.id})">🗑</button>
+            </div>
+          </div>
+        `).join('') : '<div class="empty-state">No pending tasks. You are all caught up, Boss!</div>';
+      }
+
+    } catch (e) {
+      console.warn('[DADUS] Could not sync agenda:', e);
+    }
+  }
+
+  // Complete Task Action
+  window.completeTask = async function(taskId) {
+    try {
+      await fetch(`/api/tasks/${taskId}/complete`, { method: 'POST' });
+      loadAgendaData();
+    } catch (e) {}
+  };
+
+  // Delete Task Action
+  window.deleteTask = async function(taskId) {
+    try {
+      await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      loadAgendaData();
+    } catch (e) {
+      console.error('[DADUS] Failed to delete task:', e);
+    }
+  };
+
+  // Add Task Form
+  if (createTaskForm && newTaskTitle) {
+    createTaskForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = newTaskTitle.value.trim();
+      if (!title) return;
+
+      try {
+        await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, priority: 'medium' })
+        });
+        newTaskTitle.value = '';
+        loadAgendaData();
+      } catch (e) {}
+    });
+  }
+
+  if (refreshTasksBtn) refreshTasksBtn.addEventListener('click', loadAgendaData);
+
+  // ==========================================================================
+  // 10. Neural Memory Store Synchronization
+  // ==========================================================================
+  async function loadMemoryData() {
+    try {
+      const res = await fetch('/api/memory');
+      const data = await res.json();
+      memoryCache = data.memories || [];
+      renderMemoryCards(memoryCache);
+    } catch (e) {
+      console.warn('[DADUS] Could not load memories:', e);
+    }
+  }
+
+  function renderMemoryCards(memories) {
+    if (!memoryCardsList) return;
+    if (!memories.length) {
+      memoryCardsList.innerHTML = '<div class="empty-state">No stored facts in neural memory yet.</div>';
       return;
     }
-    const filtered = cachedMcpTools.filter(t => 
-      t.name.toLowerCase().includes(query) || (t.description && t.description.toLowerCase().includes(query))
-    );
-    renderMcpTools(filtered);
-  });
 
-  document.getElementById('refreshMcpBtn')?.addEventListener('click', loadMcpTools);
+    memoryCardsList.innerHTML = memories.map(m => `
+      <div class="memory-item-tile">
+        <button class="mem-tile-delete" title="Forget Fact" onclick="forgetMemory('${m.key}')">✕</button>
+        <span class="mem-tile-cat">${m.category || 'Preference'}</span>
+        <span class="mem-tile-key">${m.key}</span>
+        <span class="mem-tile-val">${m.value}</span>
+      </div>
+    `).join('');
+  }
 
-  // Refresh buttons
-  document.getElementById('refreshScheduleBtn')?.addEventListener('click', loadSchedule);
-  document.getElementById('refreshMemoryBtn')?.addEventListener('click', loadMemories);
-  document.getElementById('refreshAuditBtn')?.addEventListener('click', loadAuditLogs);
-  document.getElementById('systemStatusBtn')?.addEventListener('click', () => {
-    sendMessage('system status');
-  });
+  window.forgetMemory = async function(key) {
+    try {
+      await fetch(`/api/memory/${encodeURIComponent(key)}`, { method: 'DELETE' });
+      loadMemoryData();
+    } catch (e) {}
+  };
+
+  // Add Memory Form
+  if (memoryStoreForm && memoryKeyInput && memoryValueInput) {
+    memoryStoreForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const key = memoryKeyInput.value.trim();
+      const value = memoryValueInput.value.trim();
+      const category = memoryCategorySelect ? memoryCategorySelect.value : 'preference';
+
+      if (!key || !value) return;
+
+      try {
+        await fetch('/api/memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value, category })
+        });
+        memoryKeyInput.value = '';
+        memoryValueInput.value = '';
+        loadMemoryData();
+      } catch (e) {}
+    });
+  }
+
+  // Search Memory
+  if (searchMemoryInput) {
+    searchMemoryInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const filtered = memoryCache.filter(m => 
+        (m.key && m.key.toLowerCase().includes(query)) ||
+        (m.value && m.value.toLowerCase().includes(query)) ||
+        (m.category && m.category.toLowerCase().includes(query))
+      );
+      renderMemoryCards(filtered);
+    });
+  }
+
+  if (refreshMemoryBtn) refreshMemoryBtn.addEventListener('click', loadMemoryData);
+
+  // ==========================================================================
+  // 11. Activity & Execution Audit Logs
+  // ==========================================================================
+  async function loadAuditLogs() {
+    try {
+      const res = await fetch('/api/logs?limit=40');
+      const data = await res.json();
+      const logs = data.logs || [];
+
+      if (auditLogsBody) {
+        if (!logs.length) {
+          auditLogsBody.innerHTML = '<tr><td colspan="4" class="table-loading">No activity logs recorded yet.</td></tr>';
+          return;
+        }
+
+        auditLogsBody.innerHTML = logs.map(l => `
+          <tr>
+            <td>${l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : 'Recent'}</td>
+            <td><strong>${l.action || 'Tool Trigger'}</strong></td>
+            <td><span class="status-badge-ok">${l.status || 'SUCCESS'}</span></td>
+            <td>${l.details ? JSON.stringify(l.details).substring(0, 80) : 'Standard system operation'}</td>
+          </tr>
+        `).join('');
+      }
+    } catch (e) {
+      console.warn('[DADUS] Could not load logs:', e);
+    }
+  }
+
+  if (refreshLogsBtn) refreshLogsBtn.addEventListener('click', loadAuditLogs);
+
+  // ==========================================================================
+  // 12. MCP Tools Registry Matrix
+  // ==========================================================================
+  async function loadToolsMatrix() {
+    try {
+      const res = await fetch('/api/mcp/tools');
+      const data = await res.json();
+      const tools = data.tools || [];
+
+      if (toolStatsBadge) {
+        toolStatsBadge.textContent = `${tools.length} Tools Loaded`;
+      }
+
+      if (toolsGrid) {
+        if (!tools.length) {
+          toolsGrid.innerHTML = '<div class="empty-state">No registered MCP tools found.</div>';
+          return;
+        }
+
+        toolsGrid.innerHTML = tools.map(t => `
+          <div class="tool-entry-card">
+            <span class="tool-entry-name">${t.name}</span>
+            <span class="tool-entry-desc">${t.description || 'Native system tool integration'}</span>
+          </div>
+        `).join('');
+      }
+    } catch (e) {
+      console.warn('[DADUS] Could not load MCP tools:', e);
+    }
+  }
+
+  // ==========================================================================
+  // 13. Confirmation Modal Dialog
+  // ==========================================================================
+  function showConfirmationModal(promptText) {
+    if (confirmPrompt) confirmPrompt.textContent = promptText;
+    if (confirmModal) confirmModal.classList.add('active');
+  }
+
+  function hideConfirmationModal() {
+    if (confirmModal) confirmModal.classList.remove('active');
+    activeConfirmationId = null;
+  }
+
+  if (modalApproveBtn) {
+    modalApproveBtn.addEventListener('click', async () => {
+      if (!activeConfirmationId) return;
+      await resolveConfirmation(activeConfirmationId, true);
+      hideConfirmationModal();
+    });
+  }
+
+  if (modalRejectBtn) {
+    modalRejectBtn.addEventListener('click', async () => {
+      if (!activeConfirmationId) return;
+      await resolveConfirmation(activeConfirmationId, false);
+      hideConfirmationModal();
+    });
+  }
+
+  async function resolveConfirmation(confId, confirmed) {
+    try {
+      const res = await fetch('/api/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmation_id: confId,
+          confirmed: confirmed,
+          session_id: sessionId
+        })
+      });
+      const data = await res.json();
+      appendDialogue('assistant', data.message);
+      setSystemState('idle', data.message);
+    } catch (e) {}
+  }
+
+  // ==========================================================================
+  // 14. Top Header Switches (Hands-Free & Audio Speech)
+  // ==========================================================================
+  if (handsFreeBtn && handsFreeLabel) {
+    handsFreeBtn.addEventListener('click', () => {
+      handsFreeEnabled = !handsFreeEnabled;
+      handsFreeBtn.classList.toggle('active', handsFreeEnabled);
+      handsFreeLabel.innerHTML = handsFreeEnabled ? 'Hey Dadus: <strong>ON</strong>' : 'Hey Dadus: <strong>OFF</strong>';
+      setSystemState('idle');
+
+      if (handsFreeEnabled && recognition && !isRecognitionRunning) {
+        try { recognition.start(); } catch (e) {}
+      } else if (!handsFreeEnabled && recognition && isRecognitionRunning) {
+        try { recognition.stop(); } catch (e) {}
+      }
+    });
+  }
+
+  if (ttsToggleBtn && ttsToggleLabel) {
+    ttsToggleBtn.addEventListener('click', () => {
+      audioEnabled = !audioEnabled;
+      ttsToggleBtn.classList.toggle('active', audioEnabled);
+      ttsToggleLabel.textContent = audioEnabled ? 'Audio' : 'Muted';
+      if (ttsIcon) ttsIcon.textContent = audioEnabled ? '🔊' : '🔇';
+    });
+  }
+
+  // Initial MCP Tool Matrix inspection in background
+  loadToolsMatrix();
+
 });

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.tools.base import BaseTool, ToolResult
 from app.security.permissions import PermissionLevel
 from app.tools.apps import AppDetector
+from app.tools.browser import launch_browser_url
 from app.memory.memory import memory_store
 
 logger = logging.getLogger("DADUS.Music")
@@ -62,7 +63,7 @@ class MusicManager:
 
             # Fallback to Spotify Web player
             web_url = f"https://open.spotify.com/search/{encoded_query}"
-            webbrowser.open(web_url)
+            launch_browser_url(web_url)
             return ToolResult(
                 tool_name="play_music",
                 success=True,
@@ -73,7 +74,7 @@ class MusicManager:
         elif "youtube" in app_clean:
             # YouTube search / play URL
             yt_url = f"https://www.youtube.com/results?search_query={encoded_query}"
-            webbrowser.open(yt_url)
+            launch_browser_url(yt_url)
             return ToolResult(
                 tool_name="play_music",
                 success=True,
@@ -84,7 +85,7 @@ class MusicManager:
         else:
             # Generic browser music search
             search_url = f"https://www.google.com/search?q={encoded_query}+song"
-            webbrowser.open(search_url)
+            launch_browser_url(search_url)
             return ToolResult(
                 tool_name="play_music",
                 success=True,

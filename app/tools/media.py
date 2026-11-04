@@ -25,6 +25,22 @@ def _send_media_key(vk_code: int) -> None:
     except Exception as ex:
         logger.error(f"Failed to send media key {vk_code}: {ex}")
 
+def is_system_audio_rendering() -> bool:
+    """Check if any application is actively rendering audio on Windows Core Audio."""
+    try:
+        from pycaw.pycaw import AudioUtilities
+        sessions = AudioUtilities.GetAllSessions()
+        for session in sessions:
+            if session.Process:
+                pname = session.Process.name().lower()
+                if pname not in ["python.exe", "pythonw.exe"]:
+                    # State 1 = AudioSessionStateActive
+                    if getattr(session, "State", 0) == 1:
+                        return True
+        return False
+    except Exception:
+        return False
+
 # ==========================================
 # Tool: pause_music
 # ==========================================
@@ -33,7 +49,7 @@ class PauseMusicInput(BaseModel):
 
 class PauseMusicTool(BaseTool):
     name = "pause_music"
-    description = "Pauses or toggles active media playback on Windows (Spotify, YouTube, browser)."
+    description = "Pauses active media playback on Windows (Spotify, YouTube, browser)."
     permission_level = PermissionLevel.SAFE
     args_schema = PauseMusicInput
 
@@ -42,7 +58,7 @@ class PauseMusicTool(BaseTool):
         return ToolResult(
             tool_name=self.name,
             success=True,
-            message="Toggled playback pause, boss."
+            message="Paused playback, boss."
         )
 
 # ==========================================

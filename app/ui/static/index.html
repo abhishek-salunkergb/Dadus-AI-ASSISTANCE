@@ -2,292 +2,496 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DADUS - Personal AI Operating Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DADUS — Premium Autonomous AI Assistant</title>
+  
+  <!-- Modern Clean Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Critical Architecture Inline Styles (Zero Unstyled Flash Guarantee) -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; width: 100%; overflow: hidden; background-color: #020409; color: #f8fafc; font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; }
+    button, input, select, textarea { appearance: none; -webkit-appearance: none; outline: none; border: none; background: transparent; color: inherit; font-family: inherit; font-size: inherit; cursor: pointer; }
+    .dadus-app-layout { display: flex; flex-direction: row; height: 100vh; width: 100vw; overflow: hidden; position: relative; }
+  </style>
+
+  <link rel="stylesheet" href="/static/style.css?v=3.0">
 </head>
-<body>
-  <div class="app-container">
-    <!-- Sidebar / Navigation -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-avatar">
-          <div class="brand-pulse"></div>
-          <span class="brand-initial">D</span>
+<body class="dadus-body">
+
+  <!-- Ambient Bioluminescent Space Gradients -->
+  <div class="ambient-glow glow-cyan"></div>
+  <div class="ambient-glow glow-magenta"></div>
+  <div class="ambient-grid"></div>
+
+  <!-- Master Desktop Layout (Fixed Left Sidebar + Responsive Main Workspace) -->
+  <div class="dadus-app-layout">
+
+    <!-- ================================================================== -->
+    <!-- FIXED LEFT SIDEBAR (250px) -->
+    <!-- ================================================================== -->
+    <aside class="dadus-sidebar" aria-label="Main Navigation">
+      
+      <!-- Top Brand Identity Header -->
+      <div class="sidebar-brand" id="navHome" title="Return to Core Assistant">
+        <div class="brand-glyph">
+          <span class="glyph-core">D</span>
+          <span class="glyph-ring"></span>
         </div>
-        <div class="brand-meta">
-          <h1 class="brand-title">DADUS</h1>
-          <p class="brand-sub">Operating Assistant</p>
+        <div class="brand-text">
+          <h1 class="brand-title">DADUS <span class="brand-tag">AI</span></h1>
+          <div class="brand-status">
+            <span class="status-pulse-dot" id="sysLed"></span>
+            <span id="sysStatusText">NEURAL CORE // ACTIVE</span>
+          </div>
         </div>
       </div>
 
-      <nav class="nav-menu">
-        <button class="nav-item active" data-tab="assistant">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-          <span>Voice & Chat</span>
+      <!-- Navigation Menu Items -->
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-panel="home" title="Core Assistant Stage">
+          <span class="nav-btn-icon">✦</span>
+          <span class="nav-btn-text">Core Assistant</span>
         </button>
-        <button class="nav-item" data-tab="schedule">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Schedule & Reminders</span>
+        <button class="nav-btn" data-panel="history" title="Dialogue History & Tool Trace">
+          <span class="nav-btn-icon">💬</span>
+          <span class="nav-btn-text">Dialogue Feed</span>
         </button>
-        <button class="nav-item" data-tab="memory">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          <span>Memories & Prefs</span>
+        <button class="nav-btn" data-panel="tasks" title="Agenda, Tasks & Reminders">
+          <span class="nav-btn-icon">📅</span>
+          <span class="nav-btn-text">Agenda & Tasks</span>
         </button>
-        <button class="nav-item" data-tab="audit">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          <span>Audit Logs</span>
+        <button class="nav-btn" data-panel="memory" title="Neural Memory & Preferences">
+          <span class="nav-btn-icon">🧠</span>
+          <span class="nav-btn-text">Neural Memory</span>
         </button>
-        <button class="nav-item" data-tab="mcp">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
-          <span>MCP Protocol</span>
+        <button class="nav-btn" data-panel="activity" title="Tool Execution Audit Logs">
+          <span class="nav-btn-icon">📊</span>
+          <span class="nav-btn-text">Activity Logs</span>
+        </button>
+        <button class="nav-btn" data-panel="tools" title="MCP Tool Matrix">
+          <span class="nav-btn-icon">🔌</span>
+          <span class="nav-btn-text">MCP Tool Matrix</span>
+        </button>
+        <button class="nav-btn" data-panel="settings" title="System Configuration & Security">
+          <span class="nav-btn-icon">⚙️</span>
+          <span class="nav-btn-text">Configuration</span>
         </button>
       </nav>
 
-      <div class="sidebar-status">
-        <div class="status-indicator">
-          <span class="status-dot online"></span>
-          <span id="agentStatusText">Ready</span>
-        </div>
-        <div class="wake-phrase-hint">
-          Wake phrase: <span class="badge">"Hey Dadus"</span>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main Content Area -->
-    <main class="main-content">
-      <!-- Top Bar -->
-      <header class="top-header">
-        <div class="header-status">
-          <div id="liveStatusBadge" class="status-badge status-ready">
-            <span class="badge-dot"></span>
-            <span class="badge-label">Ready</span>
+      <!-- Bottom Host Workstation Status Footer -->
+      <div class="sidebar-footer">
+        <div class="system-metric-pill">
+          <div class="metric-dot"></div>
+          <div class="metric-info">
+            <span class="metric-label">HOST WORKSTATION</span>
+            <span class="metric-sub" id="deviceStatusText">Windows 11 // Localhost:8000</span>
           </div>
         </div>
+      </div>
 
-        <div class="header-actions">
-          <button id="ttsToggleBtn" class="action-btn active" title="Toggle Spoken Audio">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-            <span class="btn-label">Audio On</span>
+    </aside>
+
+    <!-- ================================================================== -->
+    <!-- MAIN WORKSPACE (Occupies Remaining Width, Flex: 1) -->
+    <!-- ================================================================== -->
+    <div class="dadus-workspace">
+
+      <!-- Workspace Top Header Bar -->
+      <header class="workspace-header">
+        <div class="header-left">
+          <span class="view-title" id="currentViewTitle">Core Assistant</span>
+          <span class="view-subtitle" id="currentViewSubtitle">Autonomous Executive Intelligence</span>
+        </div>
+
+        <div class="header-right">
+          <!-- Continuous Hands-Free Wake-Word Toggle -->
+          <button id="handsFreeBtn" class="pill-toggle active" title="Toggle Continuous 'Hey Dadus' Listening">
+            <span class="toggle-dot"></span>
+            <span id="handsFreeLabel">Hey Dadus: <strong>ON</strong></span>
           </button>
-          <button id="systemStatusBtn" class="action-btn" title="Refresh System Status">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
-            <span class="btn-label">System</span>
+
+          <!-- Assistant Voice Speech Toggle -->
+          <button id="ttsToggleBtn" class="pill-btn active" title="Toggle Speech Output Audio">
+            <span class="btn-icon" id="ttsIcon">🔊</span>
+            <span id="ttsToggleLabel">Audio</span>
+          </button>
+
+          <!-- Interrupt Speech Button -->
+          <button id="interruptBtn" class="pill-btn interrupt-btn" title="Interrupt Assistant Voice" style="display: none;">
+            <span class="btn-icon">⏹</span>
+            <span>Interrupt</span>
           </button>
         </div>
       </header>
 
-      <!-- TAB 1: Voice & Chat -->
-      <section id="tab-assistant" class="tab-pane active">
-        <div class="chat-viewport">
-          <div id="messagesContainer" class="messages-container">
-            <!-- Initial Greeting -->
-            <div class="message assistant-message">
-              <div class="avatar">D</div>
-              <div class="message-bubble">
-                <p>Hello boss. DADUS is online and ready for your commands.</p>
-                <div class="quick-commands">
-                  <button class="command-chip" data-cmd="Hey Dadus, I'm bored. Suggest something.">"I'm bored"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, what are my tasks today?">"My tasks today"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, give me my morning briefing.">"Morning briefing"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, play relaxing music.">"Play relaxing music"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, find my latest PDF.">"Find latest PDF"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, find my Python project, open it in VS Code, and open its GitHub repository.">"Project & GitHub"</button>
-                  <button class="command-chip" data-cmd="Hey Dadus, I have an interview tomorrow. Help me prepare.">"Interview prep"</button>
+      <!-- Workspace Views Container -->
+      <main class="workspace-content">
+
+        <!-- ================================================================ -->
+        <!-- VIEW 1: HERO CORE ASSISTANT (Centerpiece Experience) -->
+        <!-- ================================================================ -->
+        <section id="panelHome" class="panel-view active">
+          <div class="hero-centerpiece-wrapper">
+
+            <!-- 3D Holographic Chamber (Centered, Large, Dominant) -->
+            <div class="hologram-stage-box" id="hologramStage" title="Drag to Orbit in 3D • Scroll to Zoom • Tap to Speak">
+              <canvas id="dadusOrbCanvas"></canvas>
+              <div class="hologram-floor-ring"></div>
+              <div class="hologram-ambient-light"></div>
+            </div>
+
+            <!-- Dynamic Status Capsule (Directly Below 3D Symbol) -->
+            <div class="hero-status-capsule" id="statusCapsule">
+              <div class="status-top-tag">
+                <span class="status-dot-pulse" id="stateDot"></span>
+                <span class="status-state-name" id="stateLabel">IDLE</span>
+                <span class="status-conn-badge" id="statePing">NEURAL LINK ACTIVE</span>
+              </div>
+
+              <div class="status-message-group">
+                <h2 class="status-greeting" id="greetingText">Good afternoon, Boss.</h2>
+                <p class="status-transcript-body" id="dynamicTranscript">
+                  I am standing by. Say <strong>"Hey Dadus"</strong> or tap the microphone to command your system.
+                </p>
+              </div>
+
+              <!-- Clarification Options Chips (Disambiguation) -->
+              <div class="options-container" id="optionsContainer" style="display: none;"></div>
+
+              <!-- Live Audio Waveform Equalizer -->
+              <div class="live-wave-equalizer" id="audioWaveVisualizer">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+
+            <!-- Bottom Interaction Console -->
+            <div class="hero-bottom-console">
+              
+              <!-- Quick Suggestion Chips -->
+              <div class="command-chips-row">
+                <button class="action-chip" data-command="open youtube">
+                  <span class="chip-ico">🎬</span> Open YouTube
+                </button>
+                <button class="action-chip" data-command="call abhishek">
+                  <span class="chip-ico">📞</span> Call Abhishek
+                </button>
+                <button class="action-chip" data-command="play believer on spotify">
+                  <span class="chip-ico">🎵</span> Play Music
+                </button>
+                <button class="action-chip" data-command="give me my daily briefing">
+                  <span class="chip-ico">⚡</span> Daily Briefing
+                </button>
+                <button class="action-chip" data-command="what are my tasks for today">
+                  <span class="chip-ico">📋</span> Tasks
+                </button>
+              </div>
+
+              <!-- Executive Frosted Glass Command Bar -->
+              <form id="commandForm" class="executive-command-bar">
+                <!-- Integrated Microphone Pulse Button -->
+                <button type="button" id="heroMicBtn" class="console-mic-btn" title="Click or Hold to Speak" aria-label="Microphone">
+                  <svg class="mic-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </button>
+
+                <input 
+                  type="text" 
+                  id="commandInput" 
+                  class="console-input-field" 
+                  placeholder="Ask DADUS anything or command your system..." 
+                  autocomplete="off" 
+                  spellcheck="false"
+                />
+
+                <button type="submit" id="sendBtn" class="console-send-btn" title="Execute Command" aria-label="Send">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                </button>
+              </form>
+
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ================================================================ -->
+        <!-- VIEW 2: DIALOGUE FEED & TOOL EXECUTION TRACE -->
+        <!-- ================================================================ -->
+        <section id="panelHistory" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Dialogue & Execution Stream</h2>
+                <p class="panel-sub">Real-time trace of user requests, DADUS reasoning, and tool execution badges.</p>
+              </div>
+              <button id="clearChatBtn" class="ghost-btn">Clear Feed</button>
+            </div>
+
+            <div class="chat-stream-box" id="dialogueStream">
+              <div class="dialogue-card system">
+                <div class="card-meta">
+                  <span class="badge system-badge">SYSTEM</span>
+                  <span class="timestamp">DADUS ONLINE</span>
+                </div>
+                <div class="card-content">
+                  Welcome back, Boss. All background services, MCP tool bridges, and audio nodes are operational. How may I assist you?
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Pending Confirmation Banner / Modal -->
-        <div id="confirmationBanner" class="confirmation-banner hidden">
-          <div class="banner-content">
-            <div class="banner-icon">⚠️</div>
-            <div class="banner-info">
-              <h4>Confirmation Required</h4>
-              <p id="confirmationMessage">Boss, this action requires your explicit confirmation.</p>
-            </div>
-          </div>
-          <div class="banner-actions">
-            <button id="confirmYesBtn" class="confirm-btn confirm-yes">Confirm</button>
-            <button id="confirmNoBtn" class="confirm-btn confirm-no">Cancel</button>
-          </div>
-        </div>
-
-        <!-- Clarification Banner (e.g. choose between Spotify / YouTube) -->
-        <div id="clarificationBanner" class="clarification-banner hidden">
-          <div class="clarification-content">
-            <p id="clarificationPrompt">Boss, which app should I use?</p>
-            <div id="clarificationOptions" class="clarification-options"></div>
-          </div>
-        </div>
-
-        <!-- Bottom Voice & Text Input Dock with Hardware Media Controls -->
-        <div class="dock-wrapper">
-          <div class="media-dock-bar">
-            <span class="media-label">Media & Audio:</span>
-            <button id="mediaPlayPauseBtn" class="media-mini-btn" title="Toggle Play / Pause">⏯ Play/Pause</button>
-            <button id="mediaSkipBtn" class="media-mini-btn" title="Skip to Next Track">⏭ Next Track</button>
-            <button id="volDownBtn" class="media-mini-btn" title="Volume Lower -10%">🔉 -10%</button>
-            <button id="volUpBtn" class="media-mini-btn" title="Volume Higher +10%">🔊 +10%</button>
-          </div>
-
-          <div class="input-dock">
-            <!-- Voice Visualizer Wave -->
-            <div id="voiceWave" class="voice-wave hidden">
-              <span></span><span></span><span></span><span></span><span></span>
+        <!-- ================================================================ -->
+        <!-- VIEW 3: AGENDA, TASKS & REMINDERS -->
+        <!-- ================================================================ -->
+        <section id="panelTasks" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Productivity & Agenda</h2>
+                <p class="panel-sub">Scheduled events, priority tasks, and intelligent reminders.</p>
+              </div>
+              <button id="refreshTasksBtn" class="ghost-btn">Sync Agenda</button>
             </div>
 
-            <form id="chatForm" class="chat-form">
-              <button type="button" id="micBtn" class="mic-button" title="Push to Talk (Click to speak)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mic-icon"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-              </button>
-              <input type="text" id="userInput" class="chat-input" placeholder="Type a command or click the mic (e.g., 'play relaxing music', 'what are my tasks today?')..." autocomplete="off">
-              <button type="submit" id="sendBtn" class="send-button" title="Send Command">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="send-icon"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
+            <div class="tasks-grid">
+              <!-- Column 1: Today's Schedule -->
+              <div class="glass-column">
+                <div class="col-header">
+                  <span class="col-icon">📅</span>
+                  <h3 class="col-title">Today's Schedule</h3>
+                </div>
+                <div id="scheduleItemsList" class="items-scroll-list">
+                  <div class="empty-state">No scheduled events for today.</div>
+                </div>
+              </div>
 
-      <!-- TAB 2: Schedule & Productivity -->
-      <section id="tab-schedule" class="tab-pane">
-        <div class="tab-header">
-          <h2>Productivity, Tasks & Schedule</h2>
-          <div class="header-group-actions">
-            <button id="briefingBtn" class="action-btn active">🌅 Morning Briefing</button>
-            <button id="refreshScheduleBtn" class="action-btn">Refresh</button>
-          </div>
-        </div>
-        <div class="schedule-grid three-columns">
-          <!-- Column 1: Tasks -->
-          <div class="schedule-card">
-            <div class="card-title-bar">
-              <h3>Pending Tasks</h3>
-              <span id="taskCountBadge" class="badge">0</span>
-            </div>
-            <ul id="tasksList" class="item-list">
-              <li class="loading-item">Loading tasks...</li>
-            </ul>
-          </div>
+              <!-- Column 2: Active Tasks -->
+              <div class="glass-column">
+                <div class="col-header">
+                  <span class="col-icon">✅</span>
+                  <h3 class="col-title">Pending Tasks</h3>
+                </div>
+                <div id="pendingTasksList" class="items-scroll-list">
+                  <div class="empty-state">No pending tasks. You're all caught up, Boss!</div>
+                </div>
+                <form id="createTaskForm" class="inline-add-form">
+                  <input type="text" id="newTaskTitle" placeholder="Add task (e.g. Review report)" required>
+                  <button type="submit" class="submit-pill-btn">+ Add</button>
+                </form>
+              </div>
 
-          <!-- Column 2: Reminders -->
-          <div class="schedule-card">
-            <div class="card-title-bar">
-              <h3>Active Reminders</h3>
-              <span id="reminderCountBadge" class="badge">0</span>
-            </div>
-            <ul id="remindersList" class="item-list">
-              <li class="loading-item">Loading reminders...</li>
-            </ul>
-          </div>
-
-          <!-- Column 3: Schedule -->
-          <div class="schedule-card">
-            <div class="card-title-bar">
-              <h3>Today's Schedule</h3>
-              <span id="scheduleCountBadge" class="badge">0</span>
-            </div>
-            <ul id="eventsList" class="item-list">
-              <li class="loading-item">Loading schedule...</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 3: Memories & Preferences -->
-      <section id="tab-memory" class="tab-pane">
-        <div class="tab-header">
-          <h2>Stored Preferences & Memories</h2>
-          <button id="refreshMemoryBtn" class="action-btn">Refresh</button>
-        </div>
-        <div class="memory-card">
-          <p class="memory-subtitle">DADUS stores persistent preferences (like preferred music player, default editor, etc.)</p>
-          <div id="memoryList" class="memory-list">
-            <div class="loading-item">Loading memories...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 4: Audit Logs -->
-      <section id="tab-audit" class="tab-pane">
-        <div class="tab-header">
-          <h2>Security & Tool Audit Logs</h2>
-          <button id="refreshAuditBtn" class="action-btn">Refresh</button>
-        </div>
-        <div class="audit-card">
-          <div class="table-container">
-            <table class="audit-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>User Input</th>
-                  <th>Tool</th>
-                  <th>Permission</th>
-                  <th>Status</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              <tbody id="auditTableBody">
-                <tr><td colspan="6" class="loading-item">Loading audit history...</td></tr>
-              </tbody>
-            </table>
-          </div>
-      <!-- TAB 5: MCP Protocol -->
-      <section id="tab-mcp" class="tab-pane">
-        <div class="tab-header">
-          <div>
-            <h2>Model Context Protocol (MCP) Integration</h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">
-              Standards-compliant JSON-RPC 2.0 interface connecting DADUS tools to external AI clients.
-            </p>
-          </div>
-          <button id="refreshMcpBtn" class="action-btn">Refresh Tools</button>
-        </div>
-
-        <div class="mcp-status-bar" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Status</div>
-            <div style="font-size: 1.1rem; font-weight: 600; color: #10b981; display: flex; align-items: center; gap: 6px; margin-top: 4px;">
-              <span class="status-dot online"></span> Connected & Active
+              <!-- Column 3: Reminders -->
+              <div class="glass-column">
+                <div class="col-header">
+                  <span class="col-icon">⏰</span>
+                  <h3 class="col-title">Active Reminders</h3>
+                </div>
+                <div id="activeRemindersList" class="items-scroll-list">
+                  <div class="empty-state">No active reminders.</div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Protocol Version</div>
-            <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-top: 4px;">2024-11-05 (JSON-RPC 2.0)</div>
-          </div>
-          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Exposed Tools</div>
-            <div id="mcpToolCountBadge" style="font-size: 1.1rem; font-weight: 600; color: var(--cyan); margin-top: 4px;">29 Tools Available</div>
-          </div>
-          <div class="stat-card" style="flex: 1; min-width: 180px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Endpoints</div>
-            <div style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-top: 6px;">POST /api/mcp | stdio</div>
-          </div>
-        </div>
+        </section>
 
-        <div class="card-section">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-            <h3 style="font-size: 1rem; font-weight: 600;">Approved MCP Tools Registry</h3>
-            <input type="text" id="mcpSearchInput" placeholder="Filter MCP tools..." style="padding: 6px 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 0.85rem; width: 220px;" />
+        <!-- ================================================================ -->
+        <!-- VIEW 4: NEURAL MEMORY & USER PREFERENCES -->
+        <!-- ================================================================ -->
+        <section id="panelMemory" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Neural Memory Store</h2>
+                <p class="panel-sub">Long-term facts, personal preferences, and contextual knowledge remembered by DADUS.</p>
+              </div>
+              <button id="refreshMemoryBtn" class="ghost-btn">Refresh</button>
+            </div>
+
+            <div class="memory-layout">
+              <div class="memory-form-card">
+                <h3 class="card-subtitle">Store New Preference / Fact</h3>
+                <form id="memoryStoreForm" class="stacked-form">
+                  <div class="form-group">
+                    <label for="memoryKey">Memory Key</label>
+                    <input type="text" id="memoryKey" placeholder="e.g. favorite_drink, car_model" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="memoryValue">Memory Value</label>
+                    <input type="text" id="memoryValue" placeholder="e.g. Espresso with oat milk" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="memoryCategory">Category</label>
+                    <select id="memoryCategory">
+                      <option value="preference">Preference</option>
+                      <option value="personal">Personal</option>
+                      <option value="work">Work & Projects</option>
+                      <option value="system">System Configuration</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="submit-pill-btn full-width">Remember Fact</button>
+                </form>
+              </div>
+
+              <div class="memory-list-card">
+                <input type="text" id="searchMemoryInput" placeholder="Search stored knowledge..." class="search-field">
+                <div id="memoryCardsList" class="memory-cards-grid">
+                  <div class="empty-state">Accessing neural storage...</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div id="mcpToolsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
-            <div class="loading-item">Loading MCP tool registry...</div>
+        </section>
+
+        <!-- ================================================================ -->
+        <!-- VIEW 5: ACTIVITY & TOOL EXECUTION AUDIT LOGS -->
+        <!-- ================================================================ -->
+        <section id="panelActivity" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Activity & Execution Audit Trail</h2>
+                <p class="panel-sub">Cryptographic log of all tool triggers, OS operations, and safety checks.</p>
+              </div>
+              <button id="refreshLogsBtn" class="ghost-btn">Sync Logs</button>
+            </div>
+
+            <div class="audit-table-wrapper">
+              <table class="audit-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action / Tool</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogsBody">
+                  <tr><td colspan="4" class="table-loading">Querying audit logs...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
+        </section>
+
+        <!-- ================================================================ -->
+        <!-- VIEW 6: MCP TOOLS REGISTRY -->
+        <!-- ================================================================ -->
+        <section id="panelTools" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Model Context Protocol (MCP) Tool Matrix</h2>
+                <p class="panel-sub">Registered native system tools, productivity handlers, and external services.</p>
+              </div>
+              <div class="badge tool-badge" id="toolStatsBadge">36 Tools Loaded</div>
+            </div>
+
+            <div class="tools-grid-layout" id="toolsGrid">
+              <div class="empty-state">Inspecting tool matrix...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================ -->
+        <!-- VIEW 7: CONFIGURATION & SECURITY -->
+        <!-- ================================================================ -->
+        <section id="panelSettings" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">System Parameters & Security Protocols</h2>
+                <p class="panel-sub">Fine-tune holographic rendering, voice synthesis, and safety guardrails.</p>
+              </div>
+            </div>
+
+            <div class="settings-grid">
+              <div class="settings-card">
+                <h3 class="settings-card-title">Holographic 3D Engine</h3>
+                <div class="setting-item">
+                  <span class="setting-name">Voxel Core Particles</span>
+                  <span class="setting-val">~1,500 High-Glow Instanced Voxels</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Planetary Orbit Ring</span>
+                  <span class="setting-val">Saturn Stardust Ring (Active)</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Orbit Controls</span>
+                  <span class="setting-val">Mouse Drag Orbit & Wheel Zoom Enabled</span>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <h3 class="settings-card-title">Voice & Speech Synthesis</h3>
+                <div class="setting-item">
+                  <span class="setting-name">Wake-Word Detection</span>
+                  <span class="setting-val">"Hey Dadus", "Dadus" (Continuous)</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Audio Feedback</span>
+                  <span class="setting-val">Siri Dual-Tone Chime Active</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Speech Synthesis Engine</span>
+                  <span class="setting-val">Windows SAPI / Edge-TTS</span>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <h3 class="settings-card-title">Security & Sensitive Operations</h3>
+                <div class="setting-item">
+                  <span class="setting-name">Confirmation Barrier</span>
+                  <span class="setting-val" style="color: #10b981;">ENFORCED (App Closing, Calls, Deletions)</span>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Assistant Persona</span>
+                  <span class="setting-val">Executive JARVIS Protocol</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+    </div>
+
+    <!-- Confirmation Modal Dialog -->
+    <div id="confirmModal" class="confirm-modal-overlay">
+      <div class="confirm-modal-card">
+        <div class="confirm-icon-box">⚠️</div>
+        <h3 class="confirm-title">Authorization Required</h3>
+        <p class="confirm-desc" id="confirmPrompt">Are you sure you want DADUS to execute this sensitive operation?</p>
+        <div class="confirm-action-group">
+          <button id="modalRejectBtn" class="confirm-btn reject">Decline</button>
+          <button id="modalApproveBtn" class="confirm-btn approve">Authorize Command</button>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
+
+    <!-- Hidden Audio Player for Speech -->
+    <audio id="ttsAudioPlayer" style="display: none;"></audio>
+
   </div>
 
-  <!-- Audio player element -->
-  <audio id="audioPlayer" class="hidden"></audio>
+  <!-- Three.js Bundle (Standalone Offline r128) -->
+  <script src="/static/three.min.js"></script>
+  
+  <!-- 3D Voxel Hologram Engine -->
+  <script src="/static/dadus_orb.js?v=3.0"></script>
 
-  <script src="/static/app.js"></script>
+  <!-- Main Application Logic & API Orchestration -->
+  <script src="/static/app.js?v=3.0"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import time
 import threading
 import logging
 from typing import Optional
+import queue
 from pathlib import Path
 from app.config.settings import settings
 
@@ -28,45 +29,114 @@ class BaseTTS(ABC):
         """Interrupt active speech playback immediately."""
         pass
 
+
+class _SapiPlaybackEngine:
+    """Dedicated background COM worker thread providing instant speech interruption and barge-in."""
+    _instance = None
+    _init_lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls, rate: int = 1, volume: int = 100):
+        with cls._init_lock:
+            if cls._instance is None:
+                cls._instance = cls(rate=rate, volume=volume)
+            else:
+                cls._instance.set_params(rate=rate, volume=volume)
+            return cls._instance
+
+    def __init__(self, rate: int = 1, volume: int = 100):
+        self.rate = rate
+        self.volume = volume
+        self._cmd_queue: queue.Queue = queue.Queue()
+        self._active_done_event: Optional[threading.Event] = None
+        self._is_speaking = False
+        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self._worker_thread.start()
+
+    def set_params(self, rate: int, volume: int) -> None:
+        self.rate = rate
+        self.volume = volume
+
+    def _worker_loop(self) -> None:
+        speaker = None
+        try:
+            import pythoncom
+            import win32com.client
+            pythoncom.CoInitialize()
+            speaker = win32com.client.Dispatch("SAPI.SpVoice")
+            speaker.Rate = self.rate
+            speaker.Volume = self.volume
+        except Exception as ex:
+            logger.error(f"SAPI voice initialization failed: {ex}")
+
+        while True:
+            cmd, payload, done_ev = self._cmd_queue.get()
+            if speaker is None:
+                if done_ev:
+                    done_ev.set()
+                continue
+
+            try:
+                speaker.Rate = self.rate
+                speaker.Volume = self.volume
+                if cmd == "SPEAK":
+                    self._is_speaking = True
+                    self._active_done_event = done_ev
+                    # SVSFlagsAsync = 1, SVSFPurgeBeforeSpeak = 2 -> 1 | 2 = 3
+                    speaker.Speak(payload, 3)
+                    while True:
+                        if speaker.WaitUntilDone(30):
+                            break
+                        if not self._cmd_queue.empty():
+                            speaker.Speak("", 2)
+                            break
+                    self._is_speaking = False
+                    if self._active_done_event:
+                        self._active_done_event.set()
+                        self._active_done_event = None
+                elif cmd == "STOP":
+                    speaker.Speak("", 2)
+                    self._is_speaking = False
+                    if self._active_done_event:
+                        self._active_done_event.set()
+                        self._active_done_event = None
+                    if done_ev:
+                        done_ev.set()
+            except Exception as ex:
+                logger.debug(f"SAPI worker loop error: {ex}")
+                self._is_speaking = False
+                if self._active_done_event:
+                    self._active_done_event.set()
+                    self._active_done_event = None
+                if done_ev:
+                    done_ev.set()
+
+    def speak(self, text: str, async_mode: bool = True) -> None:
+        ev = threading.Event()
+        self._cmd_queue.put(("SPEAK", text, ev))
+        if not async_mode:
+            ev.wait()
+
+    def stop(self) -> None:
+        self._cmd_queue.put(("STOP", None, None))
+
+
 class WindowsSapiTTS(BaseTTS):
     """
-    Native Windows SAPI.SpVoice TTS provider.
+    Native Windows SAPI.SpVoice TTS provider with instant barge-in cancellation.
     Zero latency, completely offline, zero cloud dependencies.
     """
 
     def __init__(self, rate: int = 1, volume: int = 100):
         self.rate = rate
         self.volume = volume
-        self._lock = threading.Lock()
+        self._engine = _SapiPlaybackEngine.get_instance(rate=rate, volume=volume)
 
     def speak(self, text: str, async_mode: bool = True) -> None:
-        """Speak text through Windows default audio device."""
+        """Speak text through Windows default audio device with interruptibility."""
         if not settings.TTS_ENABLED or not text.strip():
             return
-
-        def _do_speak():
-            with self._lock:
-                try:
-                    import pythoncom
-                    import win32com.client
-                    pythoncom.CoInitialize()
-                    speaker = win32com.client.Dispatch("SAPI.SpVoice")
-                    speaker.Rate = self.rate
-                    speaker.Volume = self.volume
-                    speaker.Speak(text)
-                except Exception as ex:
-                    logger.error(f"SAPI speech failed: {ex}")
-                finally:
-                    try:
-                        pythoncom.CoUninitialize()
-                    except Exception:
-                        pass
-
-        if async_mode:
-            thread = threading.Thread(target=_do_speak, daemon=True)
-            thread.start()
-        else:
-            _do_speak()
+        self._engine.speak(text, async_mode=async_mode)
 
     def synthesize_to_file(self, text: str, destination_path: Optional[str] = None) -> Optional[str]:
         """Synthesize speech into a WAV file using SAPI.SpFileStream."""
@@ -105,13 +175,7 @@ class WindowsSapiTTS(BaseTTS):
     def stop(self) -> None:
         """Interrupt and silence any playing speech immediately."""
         try:
-            import pythoncom
-            import win32com.client
-            pythoncom.CoInitialize()
-            speaker = win32com.client.Dispatch("SAPI.SpVoice")
-            # SVSFPurgeBeforeSpeak (2) purges existing speech
-            speaker.Speak("", 2)
-            pythoncom.CoUninitialize()
+            self._engine.stop()
         except Exception as ex:
             logger.debug(f"Stop TTS encountered: {ex}")
 

@@ -1,7 +1,4 @@
-"""Connected device registry and device-specific capability router for DADUS.
-Prepares the architecture for Android mobile clients, multiple connected devices,
-and distributed tool execution across devices.
-"""
+"""Registry and capability management for connected client devices."""
 from enum import Enum
 from typing import Dict, List, Optional, Set
 from datetime import datetime

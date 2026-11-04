@@ -12,6 +12,8 @@ class ToolResult(BaseModel):
     data: Optional[Any] = None
     error: Optional[str] = None
     needs_clarification: bool = False
+    clarification_type: Optional[str] = None
+    follow_up_tool: Optional[str] = None
     options: Optional[List[str]] = None
     confirmation_required: bool = False
     confirmation_id: Optional[str] = None

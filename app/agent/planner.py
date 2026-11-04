@@ -22,6 +22,30 @@ class ExecutionPlan(BaseModel):
     explanation: str
     steps: List[PlanStep]
 
+def _extract_project_target(text: str) -> Optional[str]:
+    """Dynamically extracts a target project name from compound natural language phrasing."""
+    match = re.search(r"(?:find|open|locate)\s+(?:my\s+)?([a-zA-Z0-9_\-]+?)(?:\s+project)?(?:\s+and|\s+in|\sto|,|$)", text, re.IGNORECASE)
+    if match:
+        cand = match.group(1).strip()
+        if cand.lower() not in ["my", "the", "a", "this", "our", ""]:
+            return cand
+    return None
+
+def _extract_editor_target(text: str) -> str:
+    """Extracts target code editor or queries user's preferred editor from persistent memory."""
+    from app.memory.memory import memory_store
+    lower = text.lower()
+    if "cursor" in lower:
+        return "Cursor"
+    if "notepad" in lower:
+        return "Notepad"
+    if "pycharm" in lower:
+        return "PyCharm"
+    if any(w in lower for w in ["vs code", "vscode", "code"]):
+        return "Visual Studio Code"
+    return memory_store.get_preferred_code_editor() or "Visual Studio Code"
+
+
 class TaskPlanner:
     """Plans and coordinates multi-step agent workflows."""
 
@@ -29,50 +53,34 @@ class TaskPlanner:
     def is_multi_step_request(cls, text: str) -> bool:
         """Detect if user query requires a sequence of multiple tool actions."""
         lower = text.lower()
-
-        # Multi-step conjunctions and compound requests
-        indicators = [
-            "and open its github",
-            "and open in vs code",
-            "and open it in",
-            "and take a screenshot",
-            "and play",
-            "and set volume",
-            "explain what you are doing",
-            "before executing"
-        ]
-        return any(ind in lower for ind in indicators)
+        if any(p in lower for p in ["explain what you are doing", "explain before executing", "explain your plan"]):
+            return True
+        # Check for clause conjunctions indicating sequential instructions
+        return bool(re.search(r"\b(?:and\s+then|then|and\s+also|and)\b", lower))
 
     @classmethod
     def create_plan(cls, text: str) -> Optional[ExecutionPlan]:
         """Decompose request into a structured multi-step execution plan."""
         lower = text.lower()
+        proj = _extract_project_target(text)
+        editor = _extract_editor_target(text)
 
-        # Explicit request to explain plan before executing
+        # 1. Meta-explanation request: User asks how multi-step workflows are evaluated
         if any(p in lower for p in ["explain what you are doing before executing", "explain before executing", "explain your plan"]):
-            # Check if there is also an action specified
-            proj = "Python"
-            if "django" in lower:
-                proj = "Django"
-            elif "python" in lower:
-                proj = "Python"
-            
-            steps = []
-            if "github" in lower or "vs code" in lower or "open" in lower:
-                steps = [
-                    PlanStep(
-                        step_number=1,
-                        tool_name="find_project_and_open",
-                        arguments={"project_name": proj, "editor": "Visual Studio Code"},
-                        description=f"Locate your '{proj}' project and open it in Visual Studio Code"
-                    )
-                ]
+            steps: List[PlanStep] = []
+            if proj:
+                steps.append(PlanStep(
+                    step_number=1,
+                    tool_name="find_project_and_open",
+                    arguments={"project_name": proj, "editor": editor},
+                    description=f"Locate '{proj}' project and open in {editor}"
+                ))
                 if "github" in lower:
                     steps.append(PlanStep(
                         step_number=2,
                         tool_name="open_project_github",
                         arguments={"project_name": proj},
-                        description=f"Open GitHub repository for '{proj}' in your browser"
+                        description=f"Open GitHub repository for '{proj}' in browser"
                     ))
 
             explanation = (
@@ -85,50 +93,68 @@ class TaskPlanner:
             )
             return ExecutionPlan(goal=text, explanation=explanation, steps=steps)
 
-        # Compound scenario: "Find my Python project, open it in VS Code, and open its GitHub repository."
+        # 2. Multi-step workflow: Locate project folder, open in editor, and launch git origin in browser
         if "github" in lower and any(w in lower for w in ["open in vs code", "open it in vs code", "open in code", "editor"]):
-            project_match = re.search(r"find\s+(?:my\s+)?([a-zA-Z0-9_\s]+?)(?:\s+project)?(?:,|\sand|\sto)", lower)
-            proj = project_match.group(1).strip() if project_match else "Python"
-            if proj.lower() in ["my", "the", ""]:
-                proj = "Python"
-
+            target_proj = proj or "current project"
             steps = [
                 PlanStep(
                     step_number=1,
                     tool_name="find_project_and_open",
-                    arguments={"project_name": proj, "editor": "Visual Studio Code"},
-                    description=f"Locate your '{proj}' project and open it in Visual Studio Code"
+                    arguments={"project_name": target_proj, "editor": editor},
+                    description=f"Locate '{target_proj}' project and open it in {editor}"
                 ),
                 PlanStep(
                     step_number=2,
                     tool_name="open_project_github",
-                    arguments={"project_name": proj},
-                    description=f"Find the git origin configuration and open the GitHub repository for '{proj}'"
+                    arguments={"project_name": target_proj},
+                    description=f"Find git origin configuration and open GitHub repository for '{target_proj}'"
                 )
             ]
-
             explanation = (
                 f"Boss, here is my plan:\n"
-                f"1. Search your computer to find the '{proj}' project folder and launch it in Visual Studio Code.\n"
+                f"1. Search your computer to find the '{target_proj}' project folder and launch it in {editor}.\n"
                 f"2. Inspect the project's repository configuration and open its GitHub page in your browser."
             )
-
             return ExecutionPlan(goal=text, explanation=explanation, steps=steps)
 
-        # Compound scenario: Project search + VS Code open
+        # 3. Single compound action: Project search + editor launch
         if any(w in lower for w in ["find my", "open my"]) and any(w in lower for w in ["in vs code", "in code editor"]):
-            project_match = re.search(r"(?:find|open)\s+(?:my\s+)?([a-zA-Z0-9_\s]+?)(?:\s+project)?(?:\s+and\s+open|\sin\s+vs\s+code)", lower)
-            proj = project_match.group(1).strip() if project_match else "project"
+            target_proj = proj or "project"
             steps = [
                 PlanStep(
                     step_number=1,
                     tool_name="find_project_and_open",
-                    arguments={"project_name": proj, "editor": "Visual Studio Code"},
-                    description=f"Locate '{proj}' and launch it in Visual Studio Code"
+                    arguments={"project_name": target_proj, "editor": editor},
+                    description=f"Locate '{target_proj}' and launch it in {editor}"
                 )
             ]
-            explanation = f"Boss, I will locate your '{proj}' directory and open it directly in VS Code."
+            explanation = f"Boss, I will locate your '{target_proj}' directory and open it directly in {editor}."
             return ExecutionPlan(goal=text, explanation=explanation, steps=steps)
+
+        # 4. Generalized Sequential Intent Pipeline
+        clauses = [c.strip() for c in re.split(r"\b(?:and\s+then|then|and\s+also|and)\b", text, flags=re.IGNORECASE) if c.strip()]
+        if len(clauses) > 1:
+            from app.agent.router import intent_router
+            discovered_steps: List[PlanStep] = []
+            for clause in clauses:
+                sub_query = re.sub(r"^(?:please\s+|can\s+you\s+|dadus\s+|also\s+)", "", clause, flags=re.IGNORECASE).strip()
+                if not sub_query:
+                    continue
+                planned, _ = intent_router.route_intent(sub_query, [])
+                if planned and planned.tool_name:
+                    step_num = len(discovered_steps) + 1
+                    discovered_steps.append(PlanStep(
+                        step_number=step_num,
+                        tool_name=planned.tool_name,
+                        arguments=planned.arguments,
+                        description=f"{planned.tool_name.replace('_', ' ').title()} ({sub_query})"
+                    ))
+
+            if len(discovered_steps) >= 2:
+                explanation = "Boss, executing your sequence of actions:\n" + "\n".join(
+                    f"{s.step_number}. {s.description}" for s in discovered_steps
+                )
+                return ExecutionPlan(goal=text, explanation=explanation, steps=discovered_steps)
 
         return None
 
@@ -140,6 +166,14 @@ class TaskPlanner:
         all_success = True
 
         for step in plan.steps:
+            from app.security.lock_screen import check_lock_screen_restriction
+            lock_refusal = check_lock_screen_restriction(step.tool_name)
+            if lock_refusal:
+                all_success = False
+                messages.append(lock_refusal)
+                results.append({"step": step.step_number, "tool": step.tool_name, "error": "lock_screen_restriction"})
+                break
+
             logger.info(f"Executing Plan Step {step.step_number}: {step.tool_name} ({step.description})")
             res = tool_registry.execute_tool(
                 name=step.tool_name,

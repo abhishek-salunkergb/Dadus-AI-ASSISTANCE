@@ -19,13 +19,19 @@ from app.tools.files import SearchFilesTool, DeleteFileOrFolderTool
 from app.tools.reminders import CreateReminderTool, ListRemindersTool
 from app.tools.schedule import GetTodayScheduleTool, CreateScheduleItemTool
 from app.tools.memory_tools import StoreMemoryTool, ForgetMemoryTool
-from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, GetDailyBriefingTool
+from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, DeleteTaskTool, GetDailyBriefingTool
 from app.tools.media import PauseMusicTool, ResumeMusicTool, SkipMusicTrackTool, AdjustVolumeTool
 from app.tools.projects import OpenFolderTool, FindProjectAndOpenTool, OpenProjectGitHubTool
+from app.tools.contacts import CallContactTool, MessageContactTool, ListContactsTool, AddContactTool
 
 def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
     """Register all standard DADUS tools."""
     tools = [
+        # Contacts & Communication
+        CallContactTool(),
+        MessageContactTool(),
+        ListContactsTool(),
+        AddContactTool(),
         # Desktop Applications
         OpenAppTool(),
         CloseAppTool(),
@@ -62,6 +68,7 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         CreateTaskTool(),
         ListTasksTool(),
         CompleteTaskTool(),
+        DeleteTaskTool(),
         GetDailyBriefingTool(),
         # Long-Term Memory
         StoreMemoryTool(),

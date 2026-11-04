@@ -9,6 +9,7 @@ from typing import Optional, List
 from app.database.database import get_db_context
 from app.database.models import Reminder
 from app.voice.tts import get_tts_provider
+from app.system import notifications
 
 logger = logging.getLogger("DADUS.ReminderDaemon")
 
@@ -61,6 +62,7 @@ class ReminderDaemon:
                 notice = f"Boss, you had a missed reminder: '{r.title}', scheduled {diff_mins} minutes ago."
                 logger.warning(f"Missed reminder detected: {r.title}")
                 get_tts_provider().speak(notice, async_mode=True)
+                notifications.show_desktop_notification(title="Missed Reminder", message=f"{r.title} ({diff_mins}m ago)")
 
                 if r.recurrence == "daily":
                     # Advance to next day
@@ -87,6 +89,7 @@ class ReminderDaemon:
                 alert = f"Boss, reminder: {r.title}."
                 logger.info(f"Firing reminder alert: '{r.title}'")
                 get_tts_provider().speak(alert, async_mode=True)
+                notifications.show_desktop_notification(title="DADUS Reminder", message=r.title)
 
                 if r.recurrence == "daily":
                     r.target_time += timedelta(days=1)

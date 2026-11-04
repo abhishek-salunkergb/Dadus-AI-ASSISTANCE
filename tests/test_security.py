@@ -81,3 +81,41 @@ def test_prompt_injection_resistance_os_system_deletion():
     )
     assert effective_level == PermissionLevel.RESTRICTED
     assert "forbidden" in block_reason.lower()
+
+
+def test_search_files_blocks_system_directory():
+    """Verify SearchFilesTool refuses to scan protected Windows or Program Files roots."""
+    from app.tools.files import SearchFilesTool
+    tool = SearchFilesTool()
+    res = tool.execute(query="*.dll", directory=r"C:\Windows\System32")
+    assert res.success is False
+    assert res.error == "PERMISSION_DENIED"
+    assert "restricted" in res.message.lower()
+
+
+def test_delete_file_tool_denies_protected_system_paths():
+    """Verify DeleteFileOrFolderTool directly rejects deleting Windows, home, or project roots."""
+    from app.tools.files import DeleteFileOrFolderTool
+    tool = DeleteFileOrFolderTool()
+    res = tool.execute(path=r"C:\Windows")
+    assert res.success is False
+    assert res.error == "PERMISSION_DENIED"
+    assert "prohibited" in res.message.lower()
+
+
+def test_cors_configuration_disallows_wildcard():
+    """Verify CORS origins do not default to insecure wildcard '*' with credentials."""
+    from app.config.settings import settings
+    assert "*" not in settings.CORS_ORIGINS
+    assert any("localhost" in o or "127.0.0.1" in o for o in settings.CORS_ORIGINS)
+
+
+def test_generalized_multi_step_sequential_planning():
+    """Verify TaskPlanner decomposes multi-clause requests into sequential plan steps."""
+    from app.agent.planner import task_planner
+    plan = task_planner.create_plan("Mute volume and take a screenshot")
+    assert plan is not None
+    assert len(plan.steps) == 2
+    step_tools = [s.tool_name for s in plan.steps]
+    assert "mute_volume" in step_tools
+    assert "take_screenshot" in step_tools

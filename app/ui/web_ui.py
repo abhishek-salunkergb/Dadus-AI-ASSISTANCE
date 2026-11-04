@@ -5,9 +5,10 @@ from app.config.settings import settings
 
 logger = logging.getLogger("DADUS.UI")
 
-def open_ui(use_webview: bool = False) -> None:
+def open_ui(use_webview: bool = False, port: int = None) -> None:
     """Launch the DADUS interface in a dedicated window or browser."""
-    url = f"http://{settings.API_HOST}:{settings.API_PORT}/"
+    target_port = port or settings.API_PORT
+    url = f"http://{settings.API_HOST}:{target_port}/"
     if use_webview:
         try:
             import webview

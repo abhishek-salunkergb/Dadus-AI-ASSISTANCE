@@ -9,7 +9,7 @@ import send2trash
 
 from app.tools.base import BaseTool, ToolResult
 from app.security.permissions import PermissionLevel
-from app.config.settings import settings
+from app.config.settings import settings, BASE_DIR
 
 logger = logging.getLogger("DADUS.Files")
 
@@ -30,7 +30,26 @@ class SearchFilesTool(BaseTool):
     args_schema = SearchFilesInput
 
     def execute(self, query: str, directory: Optional[str] = None) -> ToolResult:
-        search_dirs = [directory] if directory else settings.ALLOWED_SEARCH_ROOTS
+        if directory:
+            resolved_dir = Path(directory).resolve()
+            # Enforce that directory is not a sensitive operating system root
+            forbidden_roots = [
+                Path(os.environ.get("SystemRoot", r"C:\Windows")).resolve(),
+                Path(os.environ.get("ProgramFiles", r"C:\Program Files")).resolve(),
+                Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")).resolve(),
+            ]
+            if any(resolved_dir == r or r in resolved_dir.parents for r in forbidden_roots):
+                logger.warning(f"Restricted search directory attempted: {directory}")
+                return ToolResult(
+                    tool_name=self.name,
+                    success=False,
+                    message=f"Access to system directory '{directory}' is restricted for security.",
+                    error="PERMISSION_DENIED"
+                )
+            search_dirs = [str(resolved_dir)]
+        else:
+            search_dirs = settings.ALLOWED_SEARCH_ROOTS
+
         matches: List[str] = []
 
         is_latest_req = "latest" in query.lower()
@@ -97,6 +116,20 @@ class DeleteFileOrFolderTool(BaseTool):
     def execute(self, path: str) -> ToolResult:
         logger.info(f"Executing confirmed deletion of: {path}")
         target = Path(path).resolve()
+
+        # Prevent deletion of protected roots or user home directory root
+        forbidden_targets = [
+            Path(os.environ.get("SystemRoot", r"C:\Windows")).resolve(),
+            Path.home().resolve(),
+            Path(BASE_DIR).resolve(),
+        ]
+        if target in forbidden_targets or any(target == f for f in forbidden_targets):
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message=f"Deletion of protected root or system directory '{target.name}' is prohibited.",
+                error="PERMISSION_DENIED"
+            )
 
         if not target.exists():
             return ToolResult(

@@ -1,4 +1,6 @@
 """Controlled web browser automation and search tools for DADUS."""
+import os
+import sys
 import webbrowser
 import urllib.parse
 import logging
@@ -9,6 +11,36 @@ from app.tools.base import BaseTool, ToolResult
 from app.security.permissions import PermissionLevel
 
 logger = logging.getLogger("DADUS.Browser")
+
+
+import threading
+
+def launch_browser_url(url: str) -> bool:
+    """Reliably and instantly launch a URL asynchronously across Windows and platforms.
+
+    Runs in a dedicated daemon thread to eliminate Windows ShellExecute / DDE latency,
+    guaranteeing instant sub-millisecond return.
+    """
+    clean_url = url.strip()
+    if not (clean_url.startswith("http://") or clean_url.startswith("https://")):
+        clean_url = f"https://{clean_url}"
+
+    def _worker():
+        if sys.platform == "win32":
+            try:
+                os.startfile(clean_url)
+                return
+            except Exception as ex:
+                logger.debug(f"os.startfile failed for URL {clean_url}: {ex}")
+
+        try:
+            webbrowser.open(clean_url)
+        except Exception as ex:
+            logger.error(f"webbrowser.open failed for URL {clean_url}: {ex}")
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return True
+
 
 # ==========================================
 # Tool: open_browser
@@ -28,7 +60,7 @@ class OpenBrowserTool(BaseTool):
             clean_url = f"https://{clean_url}"
 
         try:
-            webbrowser.open(clean_url)
+            launch_browser_url(clean_url)
             return ToolResult(
                 tool_name=self.name,
                 success=True,
@@ -60,7 +92,7 @@ class SearchWebTool(BaseTool):
         encoded = urllib.parse.quote_plus(query.strip())
         search_url = f"https://www.google.com/search?q={encoded}"
         try:
-            webbrowser.open(search_url)
+            launch_browser_url(search_url)
             return ToolResult(
                 tool_name=self.name,
                 success=True,
@@ -91,7 +123,7 @@ class SearchYouTubeTool(BaseTool):
         encoded = urllib.parse.quote_plus(query.strip())
         yt_url = f"https://www.youtube.com/results?search_query={encoded}"
         try:
-            webbrowser.open(yt_url)
+            launch_browser_url(yt_url)
             return ToolResult(
                 tool_name=self.name,
                 success=True,
@@ -105,3 +137,4 @@ class SearchYouTubeTool(BaseTool):
                 message=f"Boss, I couldn't open YouTube search for '{query}'.",
                 error=str(ex)
             )
+

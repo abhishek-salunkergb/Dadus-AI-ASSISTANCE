@@ -148,11 +148,12 @@ class MemoryStore:
 
         # Learning / Technologies
         if any(w in lower for w in ["technologies", "technology", "learning", "programming", "languages"]):
-            matches = self.search("learn") + self.search("python") + self.search("tech")
+            matches = self.list_all(category="topic") + self.search("learn") + self.search("tech")
             if matches:
-                topics = [m["value"] for m in matches]
+                topics = [m["value"] for m in matches if m.get("value")]
                 unique_topics = list(dict.fromkeys(topics))
-                return f"Boss, according to your stored memories, you are learning {', '.join(unique_topics)}."
+                if unique_topics:
+                    return f"Boss, according to your stored memories, you are learning {', '.join(unique_topics)}."
             # Also check generic note
             note = self.get("learning") or self.get("technologies_learning")
             if note:

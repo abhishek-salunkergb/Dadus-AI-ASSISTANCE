@@ -1,7 +1,7 @@
 """FastAPI backend server for DADUS.
 Exposes clean REST and WebSocket endpoints for Desktop UI and future Android mobile clients.
 """
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -32,6 +32,8 @@ init_db()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
+    voice_broadcaster.set_loop(asyncio.get_running_loop())
     try:
         reminder_daemon.start()
     except Exception as ex:
@@ -49,12 +51,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS setup
+# CORS setup: Restrict origins to prevent arbitrary web pages from exploiting local agent endpoints
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -109,10 +111,14 @@ def process_chat(req: ChatRequest, background_tasks: BackgroundTasks):
         # Also speak locally on desktop via SAPI / TTS
         background_tasks.add_task(tts_provider.speak, resp.text, True)
 
-        # Synthesize audio file for web/mobile playback
-        audio_filename = f"resp_{os.getpid()}_{hash(resp.text) % 100000}.wav"
+        # Synthesize audio file for web/mobile playback (with cache to eliminate repeat TTS latency)
+        audio_filename = f"resp_{abs(hash(resp.text))}.wav"
         dest_path = str(settings.DATA_DIR / "audio" / audio_filename)
-        synthesized = tts_provider.synthesize_to_file(resp.text, dest_path)
+        if not os.path.exists(dest_path):
+            synthesized = tts_provider.synthesize_to_file(resp.text, dest_path)
+        else:
+            synthesized = dest_path
+
         if synthesized and os.path.exists(synthesized):
             audio_url = f"/api/audio/{audio_filename}"
 
@@ -163,14 +169,18 @@ def handle_confirmation(req: ConfirmationRequest):
             "message": msg
         }
 
+class VoiceListenRequest(BaseModel):
+    session_id: Optional[str] = Field(default="default_session", description="Session ID for context")
+
 @app.post("/api/voice/listen")
-def trigger_voice_listen(session_id: Optional[str] = "default_session"):
+def trigger_voice_listen(req: Optional[VoiceListenRequest] = None):
     """
     Trigger one-shot voice listening from microphone (Push-to-Talk).
     Transcribes audio and processes through agent immediately.
     """
+    session_id = req.session_id if (req and req.session_id) else "default_session"
     transcribed = stt_provider.listen_and_transcribe(timeout=5, phrase_time_limit=10)
-    if not transcribed:
+    if not transcribed or not transcribed.strip():
         return {
             "success": False,
             "message": "Boss, I couldn't hear any speech.",
@@ -179,12 +189,12 @@ def trigger_voice_listen(session_id: Optional[str] = "default_session"):
 
     resp = dadus_agent.process_input(transcribed, session_id)
     if resp.text:
-        tts_provider.speak(resp.text)
+        tts_provider.speak(resp.text, async_mode=True)
 
     return {
         "success": True,
         "transcription": transcribed,
-        "response": resp.model_dump()
+        "response": resp.to_dict()
     }
 
 # ==========================================
@@ -225,6 +235,14 @@ def create_task_endpoint(req: TaskCreateRequest):
 def complete_task_endpoint(task_id: str):
     """Mark a task as completed."""
     tool = CompleteTaskTool()
+    res = tool.execute(task_id_or_title=task_id)
+    return {"success": res.success, "message": res.message, "task": res.data}
+
+@app.delete("/api/tasks/{task_id}")
+def delete_task_endpoint(task_id: str):
+    """Delete a task by ID or title."""
+    from app.tools.tasks import DeleteTaskTool
+    tool = DeleteTaskTool()
     res = tool.execute(task_id_or_title=task_id)
     return {"success": res.success, "message": res.message, "task": res.data}
 
@@ -319,23 +337,88 @@ def get_mcp_info():
     res = mcp_server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
     return res.get("result", {})
 
-# ==========================================
-# Voice Processing Endpoints
-# ==========================================
-@app.post("/api/voice/listen")
-def voice_listen():
-    """Capture speech from backend microphone and process command."""
-    stt = get_stt_provider()
-    transcription = stt.listen_and_transcribe(timeout=5, phrase_time_limit=10)
-    if not transcription or not transcription.strip():
-        return {"success": False, "message": "No speech detected"}
 
-    resp = dadus_agent.process_input(transcription, session_id="voice_ui")
-    return {
-        "success": True,
-        "transcription": transcription,
-        "response": resp.to_dict()
-    }
+class VoiceStateBroadcaster:
+    """Manages real-time WebSocket state synchronization for DADUS 3D Holographic Orb."""
+    def __init__(self):
+        import threading
+        self._connections: List[WebSocket] = []
+        self._lock = threading.Lock()
+        self.current_state = "idle"
+        self._loop = None
+
+    def set_loop(self, loop):
+        self._loop = loop
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        with self._lock:
+            self._connections.append(ws)
+        try:
+            await ws.send_json({"type": "state", "state": self.current_state})
+        except Exception:
+            pass
+
+    def disconnect(self, ws: WebSocket):
+        with self._lock:
+            if ws in self._connections:
+                self._connections.remove(ws)
+
+    async def broadcast(self, state: str, text: str = ""):
+        self.current_state = state
+        dead = []
+        with self._lock:
+            connections = list(self._connections)
+
+        for ws in connections:
+            try:
+                await ws.send_json({"type": "state", "state": state, "text": text})
+            except Exception:
+                dead.append(ws)
+
+        for ws in dead:
+            self.disconnect(ws)
+
+    def broadcast_sync(self, state: str, text: str = "") -> None:
+        """Thread-safe state update callable from background worker threads."""
+        self.current_state = state
+        if self._loop and self._loop.is_running():
+            import asyncio
+            asyncio.run_coroutine_threadsafe(self.broadcast(state, text), self._loop)
+
+voice_broadcaster = VoiceStateBroadcaster()
+
+def sync_voice_state(state: str, text: str = "") -> None:
+    """Safely updates DADUS state both in-process and across WebSockets."""
+    try:
+        voice_broadcaster.broadcast_sync(state, text)
+    except Exception:
+        pass
+
+@app.websocket("/ws/voice-state")
+async def ws_voice_state(websocket: WebSocket):
+    """WebSocket channel for live DADUS 3D orb state sync."""
+    await voice_broadcaster.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        voice_broadcaster.disconnect(websocket)
+    except Exception:
+        voice_broadcaster.disconnect(websocket)
+
+@app.get("/api/voice/state")
+def get_voice_state():
+    """Get current voice state."""
+    return {"state": voice_broadcaster.current_state}
+
+@app.post("/api/voice/state")
+async def update_voice_state(payload: Dict[str, Any]):
+    """Update and broadcast voice state."""
+    state = payload.get("state", "idle")
+    text = payload.get("text", "")
+    await voice_broadcaster.broadcast(state, text)
+    return {"success": True, "state": state}
 
 # Mount static files for UI if directory exists
 static_dir = Path(__file__).resolve().parent.parent / "ui" / "static"
