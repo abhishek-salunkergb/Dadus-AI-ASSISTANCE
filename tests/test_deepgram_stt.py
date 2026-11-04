@@ -51,12 +51,15 @@ def test_deepgram_transcribe_bytes_success():
 
 def test_deepgram_fallback_when_api_key_missing(tmp_path):
     """When DEEPGRAM_API_KEY is not configured, transcribe_file should fallback gracefully without crashing."""
-    stt = DeepgramSTT(api_key=None)
+    stt = DeepgramSTT(api_key="")
 
     dummy_file = tmp_path / "sample.wav"
     dummy_file.write_bytes(b"dummy wav data")
 
-    with patch("app.voice.stt.SpeechRecognitionSTT.transcribe_file", return_value="fallback recognized text") as mock_sr:
+    mock_fallback = MagicMock()
+    mock_fallback.transcribe_file.return_value = "fallback recognized text"
+
+    with patch.object(stt, "_fallback_stt", return_value=mock_fallback):
         result = stt.transcribe_file(str(dummy_file))
         assert result == "fallback recognized text"
 
@@ -72,3 +75,4 @@ def test_deepgram_handles_api_error():
     with patch("requests.post", return_value=mock_resp):
         result = stt.transcribe_bytes(b"dummy audio")
         assert result is None
+

@@ -132,32 +132,38 @@ class DeepgramSTT(BaseSTT):
     API_URL = "https://api.deepgram.com/v1/listen"
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.DEEPGRAM_API_KEY
+        self.api_key = api_key if api_key is not None else settings.DEEPGRAM_API_KEY
         self.model = model or settings.DEEPGRAM_MODEL or "nova-2"
 
     def _get_api_key(self) -> Optional[str]:
-        key = self.api_key or settings.DEEPGRAM_API_KEY
+        key = self.api_key if self.api_key is not None else settings.DEEPGRAM_API_KEY
         if key and key.strip() and not key.strip().startswith("your_"):
             return key.strip()
         return None
+
+    def _fallback_stt(self) -> BaseSTT:
+        """Fallback STT provider when Deepgram API key is absent."""
+        if settings.OPENAI_API_KEY and not settings.OPENAI_API_KEY.startswith("your_"):
+            return WhisperSTT()
+        return SpeechRecognitionSTT(language=settings.STT_LANGUAGE)
 
     def transcribe_bytes(self, audio_bytes: bytes) -> Optional[str]:
         """Transcribes raw audio bytes with Deepgram Nova-2."""
         key = self._get_api_key()
         if not key:
             logger.info("DEEPGRAM_API_KEY is not configured; using fallback STT")
-            if settings.OPENAI_API_KEY and not settings.OPENAI_API_KEY.startswith("your_"):
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-                    tf.write(audio_bytes)
-                    tpath = tf.name
-                res = WhisperSTT().transcribe_file(tpath)
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                tf.write(audio_bytes)
+                tpath = tf.name
+            try:
+                res = self._fallback_stt().transcribe_file(tpath)
+            finally:
                 try:
                     os.remove(tpath)
                 except Exception:
                     pass
-                return res
-            return None
+            return res
 
         try:
             import requests
@@ -202,10 +208,8 @@ class DeepgramSTT(BaseSTT):
 
     def transcribe_file(self, audio_path: str) -> Optional[str]:
         if not self._get_api_key():
-            logger.info("DEEPGRAM_API_KEY not configured; falling back to Whisper/SpeechRecognition")
-            if settings.OPENAI_API_KEY and not settings.OPENAI_API_KEY.startswith("your_"):
-                return WhisperSTT().transcribe_file(audio_path)
-            return SpeechRecognitionSTT().transcribe_file(audio_path)
+            logger.info("DEEPGRAM_API_KEY not configured; using fallback STT")
+            return self._fallback_stt().transcribe_file(audio_path)
 
         if not os.path.exists(audio_path):
             logger.error(f"Audio file does not exist: {audio_path}")
@@ -221,9 +225,7 @@ class DeepgramSTT(BaseSTT):
 
     def listen_and_transcribe(self, timeout: int = 5, phrase_time_limit: int = 10) -> Optional[str]:
         if not self._get_api_key():
-            if settings.OPENAI_API_KEY and not settings.OPENAI_API_KEY.startswith("your_"):
-                return WhisperSTT().listen_and_transcribe(timeout, phrase_time_limit)
-            return SpeechRecognitionSTT().listen_and_transcribe(timeout, phrase_time_limit)
+            return self._fallback_stt().listen_and_transcribe(timeout, phrase_time_limit)
 
         import speech_recognition as sr
         recognizer = sr.Recognizer()
