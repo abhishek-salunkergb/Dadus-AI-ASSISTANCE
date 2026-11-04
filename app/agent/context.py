@@ -65,6 +65,16 @@ class ContextResolver:
         if re.search(r"^(?:resume|continue|unpause)\s+(?:it|the\s+music|the\s+song|playback)$", lower):
             return "resume_music", {}, None
 
+        # 6. Conversation / Email Thread Anaphora: "open that conversation", "open the thread", "open that email"
+        if re.search(r"\bopen\s+(?:that|the|this)\s+(?:conversation|thread|email|message)\b", lower):
+            thread_id = session.context_entities.get("active_thread_id")
+            return "open_email_thread", {"thread_id": thread_id}, None
+
+        # 7. Music Result Anaphora: "play the second result", "play the second one"
+        if re.search(r"\bplay\s+the\s+(?:second|2nd)\s+(?:result|one|song|video)\b", lower):
+            active_song = session.context_entities.get("active_song") or "relaxing music"
+            return "play_music", {"song": active_song, "result_index": 1}, None
+
         return None, None, None
 
     @classmethod

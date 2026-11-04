@@ -71,3 +71,12 @@ class AgentSessionState(BaseModel):
         contact_cand = arguments.get("contact_name")
         if contact_cand and isinstance(contact_cand, str):
             self.context_entities["active_contact"] = contact_cand
+
+        # Track active email thread
+        thread_cand = arguments.get("thread_id")
+        if not thread_cand and result and isinstance(result.get("data"), dict):
+            latest_t = result["data"].get("latest_thread")
+            if isinstance(latest_t, dict):
+                thread_cand = latest_t.get("thread_id")
+        if thread_cand and isinstance(thread_cand, str):
+            self.context_entities["active_thread_id"] = thread_cand

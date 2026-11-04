@@ -401,6 +401,20 @@ class IntentRouter:
         if "lock" in lower and any(w in lower for w in ["screen", "pc", "computer", "device", "workstation"]):
             return PlannedToolCall(tool_name="lock_device", arguments={}), None
 
+        # Log cleanup operations (safe two-phase confirmation)
+        if any(p in lower for p in ["delete the logs", "clean up the logs", "clean the logs", "clear the logs", "clean logs", "delete logs", "clear logs"]):
+            return PlannedToolCall(tool_name="clean_logs", arguments={}), None
+
+        # Intelligent Gmail operations
+        if any(p in lower for p in ["go to gmail", "open gmail", "launch gmail", "check gmail", "view gmail"]):
+            return PlannedToolCall(tool_name="open_gmail", arguments={}), None
+
+        if "recruiter" in lower or ("job" in lower and any(w in lower for w in ["email", "reply", "response", "replies", "update"])):
+            return PlannedToolCall(tool_name="find_recruiter_emails", arguments={}), None
+
+        if any(p in lower for p in ["open that conversation", "open the conversation", "open that email", "open this thread"]):
+            return PlannedToolCall(tool_name="open_email_thread", arguments={}), None
+
         # Destructive file operations
         del_match = re.search(r"\bdelete\s+(?:the\s+)?(?:folder|file|directory)?\s*(.+)", lower)
         if del_match:

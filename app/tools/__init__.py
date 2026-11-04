@@ -23,6 +23,8 @@ from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, Del
 from app.tools.media import PauseMusicTool, ResumeMusicTool, SkipMusicTrackTool, AdjustVolumeTool
 from app.tools.projects import OpenFolderTool, FindProjectAndOpenTool, OpenProjectGitHubTool
 from app.tools.contacts import CallContactTool, MessageContactTool, ListContactsTool, AddContactTool
+from app.tools.gmail import OpenGmailTool, FindRecruiterEmailsTool, OpenEmailThreadTool
+from app.tools.logs import CleanLogsTool
 
 def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
     """Register all standard DADUS tools."""
@@ -72,7 +74,13 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         GetDailyBriefingTool(),
         # Long-Term Memory
         StoreMemoryTool(),
-        ForgetMemoryTool()
+        ForgetMemoryTool(),
+        # Gmail & Email Assistant
+        OpenGmailTool(),
+        FindRecruiterEmailsTool(),
+        OpenEmailThreadTool(),
+        # Safe Log & Maintenance
+        CleanLogsTool()
     ]
     for tool in tools:
         registry.register(tool)

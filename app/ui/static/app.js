@@ -571,6 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewTitles = {
     home: { title: 'Core Assistant', sub: 'Autonomous Executive Intelligence' },
     history: { title: 'Dialogue Feed', sub: 'Real-Time Message Trace & Execution History' },
+    gmail: { title: 'Recruiter Communications', sub: 'Verified Recruiter Responses & Interview Pipeline' },
     tasks: { title: 'Agenda & Tasks', sub: 'Scheduled Events, Productivity & Reminders' },
     memory: { title: 'Neural Memory Store', sub: 'Stored Facts, Personal Preferences & Knowledge' },
     activity: { title: 'Activity & Audit Logs', sub: 'Cryptographic Operations & Safety Logs' },
@@ -595,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lazy load data for selected panel
     if (panelId === 'tasks') loadAgendaData();
+    if (panelId === 'gmail') loadRecruiterEmails();
     if (panelId === 'memory') loadMemoryData();
     if (panelId === 'activity') loadAuditLogs();
     if (panelId === 'tools') loadToolsMatrix();
@@ -924,6 +926,101 @@ document.addEventListener('DOMContentLoaded', () => {
       ttsToggleBtn.classList.toggle('active', audioEnabled);
       ttsToggleLabel.textContent = audioEnabled ? 'Audio' : 'Muted';
       if (ttsIcon) ttsIcon.textContent = audioEnabled ? '🔊' : '🔇';
+    });
+  }
+
+  // ==========================================================================
+  // 15. Intelligent Gmail & Recruiter Insights Controller
+  // ==========================================================================
+  const recruiterEmailsList = document.getElementById('recruiterEmailsList');
+  const refreshGmailBtn = document.getElementById('refreshGmailBtn');
+  const openWebGmailBtn = document.getElementById('openWebGmailBtn');
+  let currentGmailFilter = 'all';
+
+  async function loadRecruiterEmails(categoryFilter = null) {
+    if (!recruiterEmailsList) return;
+    recruiterEmailsList.innerHTML = '<div class="empty-state">Scanning recruiter communications & threads...</div>';
+    try {
+      const url = categoryFilter && categoryFilter !== 'all' ? `/api/gmail/insights?category=${encodeURIComponent(categoryFilter)}` : '/api/gmail/insights';
+      const res = await fetch(url);
+      const data = await res.json();
+      const results = (data.data && data.data.results) ? data.data.results : [];
+
+      if (!results.length) {
+        recruiterEmailsList.innerHTML = '<div class="empty-state">No matching recruiter responses found.</div>';
+        return;
+      }
+
+      recruiterEmailsList.innerHTML = '';
+      results.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'email-card';
+
+        let pillClass = 'status-other';
+        if (item.status.includes('Interview')) pillClass = 'status-interview';
+        else if (item.status.includes('replied') || item.status.includes('contacted')) pillClass = 'status-reply';
+        else if (item.status.includes('Shortlisted')) pillClass = 'status-shortlist';
+
+        card.innerHTML = `
+          <div class="email-card-header">
+            <div>
+              <div class="email-company">${item.company_name || 'Organization'}</div>
+              <div class="email-recruiter">${item.recruiter_name} • ${item.date}</div>
+            </div>
+            <span class="email-status-pill ${pillClass}">${item.status}</span>
+          </div>
+          <div class="email-subject">${item.subject}</div>
+          <div class="email-snippet">"${item.relevant_recruiter_response || item.latest_message_summary}"</div>
+          <div class="email-action-box">
+            <span class="email-next-action">Next Action: ${item.suggested_next_action}</span>
+            <a href="${item.gmail_link}" target="_blank" class="email-open-btn">Open Thread ↗</a>
+          </div>
+        `;
+        recruiterEmailsList.appendChild(card);
+      });
+    } catch (e) {
+      recruiterEmailsList.innerHTML = '<div class="empty-state">Unable to load recruiter emails.</div>';
+    }
+  }
+
+  if (refreshGmailBtn) {
+    refreshGmailBtn.addEventListener('click', () => loadRecruiterEmails(currentGmailFilter));
+  }
+
+  if (openWebGmailBtn) {
+    openWebGmailBtn.addEventListener('click', () => window.open('https://mail.google.com', '_blank'));
+  }
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentGmailFilter = btn.dataset.filter;
+      loadRecruiterEmails(currentGmailFilter);
+    });
+  });
+
+  // Windows Autostart Toggle Controller
+  const autostartToggle = document.getElementById('autostartToggle');
+  async function syncAutostart() {
+    if (!autostartToggle) return;
+    try {
+      const res = await fetch('/api/system/autostart');
+      const data = await res.json();
+      autostartToggle.checked = !!data.enabled;
+    } catch (e) {}
+  }
+  syncAutostart();
+
+  if (autostartToggle) {
+    autostartToggle.addEventListener('change', async () => {
+      try {
+        await fetch('/api/system/autostart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: autostartToggle.checked })
+        });
+      } catch (e) {}
     });
   }
 

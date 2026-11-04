@@ -337,6 +337,45 @@ def get_mcp_info():
     res = mcp_server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
     return res.get("result", {})
 
+# ==========================================
+# Phase 5: Voice Health, Gmail & Autostart Endpoints
+# ==========================================
+@app.get("/api/voice/health")
+def get_voice_health():
+    """Provides real-time health and connection status of background voice engine."""
+    from app.voice.service import voice_service
+    return voice_service.get_health()
+
+@app.post("/api/voice/trigger")
+def trigger_voice_manually(payload: Optional[Dict[str, str]] = None):
+    """Trigger voice recognition directly without wake word."""
+    from app.voice.service import voice_service
+    cmd = payload.get("command") if payload else None
+    voice_service.trigger_wake_manually(cmd)
+    return {"success": True, "message": "Triggered active listening"}
+
+@app.get("/api/gmail/insights")
+def get_gmail_insights(query: Optional[str] = None):
+    """Retrieve recruiter responses, interview invitations, and status breakdown."""
+    from app.tools.gmail import FindRecruiterEmailsTool
+    tool = FindRecruiterEmailsTool()
+    res = tool.execute(query=query)
+    return res.to_dict()
+
+@app.get("/api/system/autostart")
+def get_autostart_status():
+    """Check if DADUS is configured to launch on Windows login."""
+    from app.system.autostart import autostart_manager
+    return {"enabled": autostart_manager.is_autostart_enabled()}
+
+@app.post("/api/system/autostart")
+def set_autostart_status(payload: Dict[str, bool]):
+    """Toggle Windows startup registry entry."""
+    from app.system.autostart import autostart_manager
+    enable = payload.get("enabled", True)
+    success = autostart_manager.enable_autostart() if enable else autostart_manager.disable_autostart()
+    return {"success": success, "enabled": autostart_manager.is_autostart_enabled()}
+
 
 class VoiceStateBroadcaster:
     """Manages real-time WebSocket state synchronization for DADUS 3D Holographic Orb."""

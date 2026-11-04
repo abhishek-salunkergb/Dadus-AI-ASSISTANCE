@@ -54,3 +54,5 @@ def show_desktop_notification(
 
     return True
 
+notify_user = show_desktop_notification
+

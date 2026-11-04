@@ -1531,7 +1531,131 @@ button, input, select, textarea {
 }
 
 /* --------------------------------------------------------------------------
-   12. Responsive Breakpoints
+   13. Recruiter Emails & Insights Grid
+   -------------------------------------------------------------------------- */
+.email-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.email-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.email-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 240, 255, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 240, 255, 0.08);
+}
+
+.email-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.email-company {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.email-recruiter {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.email-status-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-interview {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-reply {
+  background: rgba(0, 240, 255, 0.15);
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.status-shortlist {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.status-other {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.email-subject {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.email-snippet {
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+  background: rgba(2, 6, 23, 0.4);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 2px solid var(--accent-cyan);
+}
+
+.email-action-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.email-next-action {
+  font-size: 0.78rem;
+  color: #38bdf8;
+  font-style: italic;
+}
+
+.email-open-btn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(0, 240, 255, 0.12);
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.email-open-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+}
+
    -------------------------------------------------------------------------- */
 @media (max-width: 1100px) {
   :root {

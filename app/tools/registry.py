@@ -139,6 +139,8 @@ class ToolRegistry:
         if tool_name in ["delete_file_or_folder", "remove_directory"]:
             path = args.get("path", "the specified target")
             return f"Boss, this will permanently delete '{path}'. Should I continue?"
+        if tool_name == "clean_logs":
+            return "Boss, this will inspect and clean eligible log files while strictly protecting security audit records. Should I proceed?"
         if tool_name == "shutdown_system":
             return "Boss, this will shut down your computer. Should I proceed?"
         if tool_name == "restart_system":

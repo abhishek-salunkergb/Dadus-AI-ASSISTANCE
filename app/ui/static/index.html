@@ -60,6 +60,10 @@
           <span class="nav-btn-icon">💬</span>
           <span class="nav-btn-text">Dialogue Feed</span>
         </button>
+        <button class="nav-btn" data-panel="gmail" title="Recruiter Emails & Insights">
+          <span class="nav-btn-icon">✉️</span>
+          <span class="nav-btn-text">Recruiter Emails</span>
+        </button>
         <button class="nav-btn" data-panel="tasks" title="Agenda, Tasks & Reminders">
           <span class="nav-btn-icon">📅</span>
           <span class="nav-btn-text">Agenda & Tasks</span>
@@ -354,6 +358,36 @@
         </section>
 
         <!-- ================================================================ -->
+        <!-- VIEW 4B: RECRUITER EMAILS & INTELLIGENT GMAIL INSIGHTS -->
+        <!-- ================================================================ -->
+        <section id="panelGmail" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Recruiter Communications & Job Pipeline</h2>
+                <p class="panel-sub">Verified recruiter outreach, interview requests, and application updates.</p>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <button id="openWebGmailBtn" class="ghost-btn">Open Gmail</button>
+                <button id="refreshGmailBtn" class="primary-btn">Scan Recruiter Emails</button>
+              </div>
+            </div>
+
+            <!-- Email Category Filter Tabs -->
+            <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+              <button class="ghost-btn filter-btn active" data-filter="all">All Updates</button>
+              <button class="ghost-btn filter-btn" data-filter="Interview opportunity">Interviews</button>
+              <button class="ghost-btn filter-btn" data-filter="Recruiter replied">Replies</button>
+              <button class="ghost-btn filter-btn" data-filter="Shortlisted / next round">Shortlisted</button>
+            </div>
+
+            <div class="email-cards-grid" id="recruiterEmailsList">
+              <div class="empty-state">Click 'Scan Recruiter Emails' or say "Hey Dadus, find recruiter replies in my Gmail".</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================ -->
         <!-- VIEW 5: ACTIVITY & TOOL EXECUTION AUDIT LOGS -->
         <!-- ================================================================ -->
         <section id="panelActivity" class="panel-view">
@@ -445,6 +479,21 @@
                 <div class="setting-item">
                   <span class="setting-name">Speech Synthesis Engine</span>
                   <span class="setting-val">Windows SAPI / Edge-TTS</span>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <h3 class="settings-card-title">Windows Lifecycle & Startup</h3>
+                <div class="setting-item" style="display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <div class="setting-name">Launch on Windows Login</div>
+                    <div style="font-size:0.75rem; color:#94a3b8;">Starts DADUS background wake service automatically on boot</div>
+                  </div>
+                  <input type="checkbox" id="autostartToggle" style="width:20px; height:20px; cursor:pointer; accent-color:#06b6d4;">
+                </div>
+                <div class="setting-item">
+                  <span class="setting-name">Background Daemon</span>
+                  <span class="setting-val" style="color: #10b981;">ACTIVE (System Tray & Global Hotkey Alt+Shift+D)</span>
                 </div>
               </div>
 
