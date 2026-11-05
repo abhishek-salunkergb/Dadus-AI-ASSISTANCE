@@ -42,3 +42,4 @@ class CapabilityRegistry:
     def list_all_capabilities(self) -> Dict[str, List[Dict[str, Any]]]:
         """Returns the complete map of indexed capabilities and apps."""
         return self._capabilities
+

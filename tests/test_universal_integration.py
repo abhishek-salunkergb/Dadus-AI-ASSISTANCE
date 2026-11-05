@@ -227,3 +227,4 @@ def test_natural_language_email_and_files_routing():
         res4 = agent.process_input("Open my music application.", session_id=sid)
         assert res4.status == "DONE"
         assert res4.tool_called == "open_app"
+

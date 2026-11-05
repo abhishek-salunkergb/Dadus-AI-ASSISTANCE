@@ -72,3 +72,4 @@ class BasePlatformAdapter(ABC):
     def lock_workstation(self) -> bool:
         """Lock the operating system screen."""
         pass
+

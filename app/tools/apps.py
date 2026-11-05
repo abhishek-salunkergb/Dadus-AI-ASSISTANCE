@@ -288,24 +288,14 @@ class OpenAppTool(BaseTool):
         clean_name = app_name.strip().lower()
         logger.info(f"Executing open_app for '{app_name}'")
 
-        # 1. Instant check for well-known web services (0.0001s: YouTube, Netflix, ChatGPT, WhatsApp, etc.)
-        if clean_name in WEB_APP_URLS:
-            fallback_url = WEB_APP_URLS[clean_name]
-            try:
-                from app.tools.browser import launch_browser_url
-                launch_browser_url(fallback_url)
-                return self._build_success_result(app_name, "browser_fallback", fallback_url)
-            except Exception as web_ex:
-                logger.error(f"Failed to open browser for '{app_name}': {web_ex}")
-
-        # 2. Local Windows desktop application check (cached, 0.0001s)
+        # 1. First priority: Check for installed native desktop application (cached registry, start menu, PATH)
         app_info = AppDetector.find_app(app_name)
         if not app_info:
             resolved = shutil.which(app_name)
             if resolved:
                 app_info = AppInfo(name=app_name, executable_or_path=resolved, source="path")
 
-        # If found as a local app, check if already running or launch it asynchronously!
+        # If found as a local app, focus existing window or launch it
         if app_info:
             target = app_info.executable_or_path
 
@@ -324,7 +314,17 @@ class OpenAppTool(BaseTool):
                 time.sleep(0.3)
                 return self._build_success_result(app_info.name, "desktop_app", target)
             except Exception as ex:
-                logger.warning(f"Local app launch failed for '{app_name}', attempting browser fallback: {ex}")
+                logger.warning(f"Local app launch failed for '{app_name}', falling back to web: {ex}")
+
+        # 2. Second priority: If not installed locally, check known web services (YouTube, ChatGPT, Spotify Web, etc.)
+        if clean_name in WEB_APP_URLS:
+            fallback_url = WEB_APP_URLS[clean_name]
+            try:
+                from app.tools.browser import launch_browser_url
+                launch_browser_url(fallback_url)
+                return self._build_success_result(app_name, "browser_fallback", fallback_url)
+            except Exception as web_ex:
+                logger.error(f"Failed to open browser for '{app_name}': {web_ex}")
 
         # 3. Partial Web App matching or Search Fallback
         fallback_url = None

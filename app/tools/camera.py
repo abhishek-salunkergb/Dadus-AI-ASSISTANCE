@@ -87,3 +87,4 @@ class RecordVideoTool(BaseTool):
                 message="Boss, unable to launch the video recorder on this device.",
                 error="VIDEO_RECORDER_FAILED"
             )
+

@@ -111,3 +111,4 @@ class ShowRecentPhotosTool(BaseTool):
             message=msg,
             data={"photos": photo_records, "count": len(photos), "latest": str(photos[0])}
         )
+

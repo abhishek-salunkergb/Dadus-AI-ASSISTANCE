@@ -178,42 +178,43 @@ class IntentRouter:
         if any(p in lower for p in ["open gmail", "launch gmail", "go to gmail"]):
             return PlannedToolCall(tool_name="open_gmail", arguments={}), None
 
-        # Calendar operations
-        if any(p in lower for p in ["create a calendar event", "create calendar event", "add calendar event", "add event to calendar", "new calendar event"]):
-            return PlannedToolCall(tool_name="create_schedule_item", arguments={"title": "New Event", "start_time": "tomorrow at 10 AM"}), None
+        # Calendar operations - dynamically extract title and time if present
+        cal_match = re.search(r"\b(?:create|add|schedule)\s+(?:a\s+)?calendar\s+event(?:\s+(?:for|called|named)?\s+([^,]+?))?(?:\s+(?:at|on|for)\s+([0-9a-zA-Z\s:]+))?$", clean, re.IGNORECASE)
+        if cal_match or any(p in lower for p in ["create a calendar event", "create calendar event", "add calendar event", "add event to calendar", "new calendar event"]):
+            ev_title = (cal_match.group(1).strip(" .?!'\"") if cal_match and cal_match.group(1) else "New Event")
+            ev_time = (cal_match.group(2).strip(" .?!'\"") if cal_match and cal_match.group(2) else "tomorrow at 10 AM")
+            return PlannedToolCall(tool_name="create_schedule_item", arguments={"title": ev_title, "start_time": ev_time}), None
 
-        # Music application
+        # Music application - resolved from user long-term preferences
         if any(p in lower for p in ["open my music application", "open music app", "open my music app", "open music"]):
             from app.memory.memory import memory_store
             pref = memory_store.get_preferred_music_app() or "Spotify"
             return PlannedToolCall(tool_name="open_app", arguments={"app_name": pref}), None
 
-        # Downloaded files & PDFs
-        pdf_match = re.search(r"\b(?:find|locate|search|open)\s+(?:my\s+)?downloaded\s+(?:pdf|file)\b|\bfind\s+(?:my\s+)?downloaded\s+pdf\b", lower)
+        # Downloaded files & PDFs - dynamically extracts topic or queries latest .pdf
+        pdf_match = re.search(r"\b(?:find|locate|search|open)\s+(?:my\s+)?downloaded\s+(?:([a-zA-Z0-9_\-\s]+?)\s+)?(?:pdf|file)\b", lower)
         if pdf_match or "downloaded pdf" in lower:
-            return PlannedToolCall(tool_name="search_files", arguments={"query": "latest .pdf"}), None
+            topic = pdf_match.group(1).strip() if (pdf_match and pdf_match.group(1)) else ""
+            query_str = f"{topic} .pdf".strip() if topic else "latest .pdf"
+            return PlannedToolCall(tool_name="search_files", arguments={"query": query_str}), None
 
-        # Find contact
+        # Find contact - routes to dedicated find_contact tool instead of placing call
         find_contact_match = re.search(r"\b(?:find|search|lookup|look up)\s+(?:my\s+)?contact\s+([a-zA-Z\s]+)", clean, re.IGNORECASE)
         if find_contact_match:
             cand_name = find_contact_match.group(1).strip(" .?!'\"")
-            from app.tools.contacts import find_matching_contacts
-            matches = find_matching_contacts(cand_name)
-            if matches:
-                return PlannedToolCall(tool_name="call_contact", arguments={"contact_name": cand_name}), None
-            else:
-                return None, f"Boss, I couldn't find '{cand_name}' in your contacts. Would you like me to add them?"
+            return PlannedToolCall(tool_name="find_contact", arguments={"contact_name": cand_name}), None
 
-        # Direct application launches
+        # Direct application launches - resolves aliases and memory preferences
         open_direct = re.match(r"^(?:open|launch|start|bring up)\s+(?:the\s+|my\s+|google\s+)?([a-zA-Z0-9\s\.\-_]+)$", clean, re.IGNORECASE)
         if open_direct:
             cand = open_direct.group(1).strip(" .?!'\"")
             cand_clean = re.sub(r"\b(please|for me|app|application)\b", "", cand, flags=re.IGNORECASE).strip(" .?!'\"")
             if cand_clean and not any(w in cand_clean.lower() for w in ["and", "with", "project", "github", "task", "file", "reminder", "alarm", "music", "song", "camera", "gallery", "photo", "picture", "video", "briefing", "coding", "use for", "downloaded", "contact"]):
+                from app.memory.memory import memory_store
                 if cand_clean.lower() in ["code editor", "editor", "ide"]:
-                    cand_clean = "Visual Studio Code"
+                    cand_clean = memory_store.get_preferred_code_editor() or "Visual Studio Code"
                 elif cand_clean.lower() in ["browser", "web browser"]:
-                    cand_clean = "Google Chrome"
+                    cand_clean = memory_store.get_preferred_browser() or "Google Chrome"
                 formatted_name = cand_clean.title() if len(cand_clean) > 4 else cand_clean.upper()
                 return PlannedToolCall(tool_name="open_app", arguments={"app_name": formatted_name}), None
 

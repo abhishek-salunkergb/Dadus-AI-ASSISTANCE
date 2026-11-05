@@ -15,6 +15,8 @@ from app.voice.tts import get_tts_provider
 from app.voice.stt import get_stt_provider
 from app.agent.agent import dadus_agent
 from app.audio.ducking import audio_ducker
+from app.voice.tts import is_speech_active
+from app.voice.wakeword_matcher import WakeWordMatcher
 
 logger = logging.getLogger("DADUS.VoiceService")
 
@@ -132,17 +134,23 @@ class VoiceAgentService:
         }
 
     def _run_voice_lifecycle(self) -> None:
-        """Continuous background wake-word listener loop."""
+        """Continuous background wake-word listener loop with acoustic echo suppression and buffer stitching."""
         tts = get_tts_provider()
         stt = get_stt_provider()
 
         import speech_recognition as sr
         recognizer = sr.Recognizer()
-        recognizer.energy_threshold = settings.STT_ENERGY_THRESHOLD
-        recognizer.dynamic_energy_threshold = settings.STT_DYNAMIC_ENERGY_THRESHOLD
-        recognizer.pause_threshold = 0.8
+        # Calibrated stable baseline threshold preventing mic deafening
+        recognizer.energy_threshold = max(200, settings.STT_ENERGY_THRESHOLD)
+        recognizer.dynamic_energy_threshold = False
+        recognizer.pause_threshold = 1.3
+        recognizer.phrase_threshold = 0.2
+        recognizer.non_speaking_duration = 0.5
 
-        logger.info(f"Background Wake Monitoring active. Configured phrases: {self.wake_phrases}")
+        logger.info(f"Background Wake Monitoring active. Target assistant name: '{WakeWordMatcher.ASSISTANT_NAME}'")
+
+        last_lone_greeting: Optional[str] = None
+        last_lone_greeting_time: float = 0.0
 
         while self._running:
             detected = False
@@ -154,13 +162,22 @@ class VoiceAgentService:
                     recognizer.adjust_for_ambient_noise(source, duration=0.3)
 
                     while self._running:
+                        # 1. Acoustic Feedback Suppression: Do not capture while assistant is speaking
+                        if is_speech_active():
+                            time.sleep(0.15)
+                            continue
+
                         self._set_state(VoiceState.IDLE_WAKE_MONITORING, "Listening for 'Hey Dadus'...")
                         try:
-                            audio = recognizer.listen(source, timeout=3.0, phrase_time_limit=4.5)
+                            audio = recognizer.listen(source, timeout=3.0, phrase_time_limit=5.0)
                         except sr.WaitTimeoutError:
                             continue
 
-                        # Transcribe captured snippet using Deepgram Nova-2 (if available) or Google
+                        # Discard audio if speech playback started while recording
+                        if is_speech_active():
+                            continue
+
+                        # 2. Transcribe captured snippet via Deepgram Nova-2 (flagship) or Google
                         text = None
                         wav_data = audio.get_wav_data()
                         if hasattr(stt, "transcribe_bytes") and getattr(stt, "_get_api_key", lambda: None)():
@@ -175,27 +192,29 @@ class VoiceAgentService:
                             except (sr.UnknownValueError, sr.RequestError):
                                 continue
 
-                        if not text:
+                        if not text or len(text.strip()) < 2:
                             continue
 
-                        lower = text.lower()
+                        # 3. Buffer Stitching for Greeting Continuity (e.g. "Hey," ... "Dadus")
+                        now = time.time()
+                        candidate_text = text
+                        if last_lone_greeting and (now - last_lone_greeting_time <= 3.0):
+                            candidate_text = f"{last_lone_greeting} {text}"
+                            last_lone_greeting = None
 
-                        # Robust phonetic pattern matching for 'Hey Dadus' (including Google's "headaches", "hey status", etc.)
-                        wake_pattern = r"\b(?:hey|hi|ok|hello|a)?\s*(?:dadus|dadas|dad\s*is|dadu|datus|daddus|dartus|status|that\s*is|headache|headaches|doctors|address|the\s*dust)\b"
-                        match = re.search(wake_pattern, lower)
-                        if match:
+                        # 4. Principled Phonetic Wake Matching
+                        is_wake, inline_cmd = WakeWordMatcher.match(candidate_text)
+                        if is_wake:
                             detected = True
-                            inline_command = text[match.end():].strip(" ,.?!")
+                            inline_command = inline_cmd
+                            last_lone_greeting = None
                             break
+                        elif WakeWordMatcher.is_lone_greeting(text):
+                            last_lone_greeting = text.strip(" ,.?!")
+                            last_lone_greeting_time = now
+                            logger.debug(f"Captured initial greeting '{last_lone_greeting}', holding buffer for assistant name...")
                         else:
-                            for phrase in self.wake_phrases:
-                                if phrase in lower:
-                                    detected = True
-                                    idx = lower.find(phrase) + len(phrase)
-                                    inline_command = text[idx:].strip(" ,.?!")
-                                    break
-                            if detected:
-                                break
+                            last_lone_greeting = None
 
                 # Handle active turn outside the microphone context so hardware buffers clear cleanly
                 if detected:
@@ -267,11 +286,10 @@ class VoiceAgentService:
                     break
 
                 # If user repeated wake word during follow-up window (e.g. "Hey Dadus open Chrome" or just "Hey Dadus")
-                wake_match = re.search(r"\b(?:hey|hi|ok|hello|a)?\s*(?:dadus|dadas|dad\s*is|dadu|datus|daddus|dartus|status|that\s*is|headache|headaches)\b", lower_cmd)
-                if wake_match:
-                    rem_cmd = command_text[wake_match.end():].strip(" ,.?!")
-                    if rem_cmd:
-                        command_text = rem_cmd
+                is_rep_wake, rep_cmd = WakeWordMatcher.match(command_text)
+                if is_rep_wake:
+                    if rep_cmd:
+                        command_text = rep_cmd
                     else:
                         self._set_state(VoiceState.GREETING, "I'm listening, Boss. Tell me.")
                         tts.speak("I'm listening, Boss. Tell me.", async_mode=False)

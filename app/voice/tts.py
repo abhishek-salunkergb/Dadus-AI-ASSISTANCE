@@ -11,6 +11,20 @@ from app.config.settings import settings
 
 logger = logging.getLogger("DADUS.TTS")
 
+_speech_active_flag: bool = False
+_speech_active_lock = threading.Lock()
+
+def is_speech_active() -> bool:
+    """Returns True if any TTS engine is actively speaking audio through speakers."""
+    with _speech_active_lock:
+        return _speech_active_flag
+
+def set_speech_active(active: bool) -> None:
+    """Updates active speech status to prevent microphone acoustic self-feedback."""
+    global _speech_active_flag
+    with _speech_active_lock:
+        _speech_active_flag = active
+
 class BaseTTS(ABC):
     """Abstract interface for text-to-speech providers."""
 
@@ -81,6 +95,7 @@ class _SapiPlaybackEngine:
                 speaker.Volume = self.volume
                 if cmd == "SPEAK":
                     self._is_speaking = True
+                    set_speech_active(True)
                     self._active_done_event = done_ev
                     # SVSFlagsAsync = 1, SVSFPurgeBeforeSpeak = 2 -> 1 | 2 = 3
                     speaker.Speak(payload, 3)
@@ -91,12 +106,14 @@ class _SapiPlaybackEngine:
                             speaker.Speak("", 2)
                             break
                     self._is_speaking = False
+                    set_speech_active(False)
                     if self._active_done_event:
                         self._active_done_event.set()
                         self._active_done_event = None
                 elif cmd == "STOP":
                     speaker.Speak("", 2)
                     self._is_speaking = False
+                    set_speech_active(False)
                     if self._active_done_event:
                         self._active_done_event.set()
                         self._active_done_event = None
@@ -187,15 +204,21 @@ class OpenAITTS(BaseTTS):
         self.voice = voice
 
     def speak(self, text: str, async_mode: bool = True) -> None:
-        audio_path = self.synthesize_to_file(text)
-        if audio_path and os.path.exists(audio_path):
-            import winsound
-            winsound.PlaySound(audio_path, winsound.SND_FILENAME | (winsound.SND_ASYNC if async_mode else 0))
-        else:
-            WindowsSapiTTS().speak(text, async_mode=async_mode)
+        set_speech_active(True)
+        try:
+            audio_path = self.synthesize_to_file(text)
+            if audio_path and os.path.exists(audio_path):
+                import winsound
+                winsound.PlaySound(audio_path, winsound.SND_FILENAME | (winsound.SND_ASYNC if async_mode else 0))
+            else:
+                WindowsSapiTTS().speak(text, async_mode=async_mode)
+        finally:
+            if not async_mode:
+                set_speech_active(False)
 
     def stop(self) -> None:
         """Interrupt active sound playback."""
+        set_speech_active(False)
         try:
             import winsound
             winsound.PlaySound(None, winsound.SND_PURGE)

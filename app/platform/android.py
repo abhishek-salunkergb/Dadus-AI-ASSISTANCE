@@ -16,6 +16,26 @@ class AndroidPlatformAdapter(BasePlatformAdapter):
     """Platform adapter for Android or mobile Linux environments."""
 
     def get_device_info(self) -> DeviceInfo:
+        # Real memory detection via psutil / OS proc
+        try:
+            import psutil
+            mem_gb = round(psutil.virtual_memory().total / (1024 ** 3), 2)
+        except Exception:
+            mem_gb = 4.0
+
+        # Real battery detection via OS sensors
+        has_battery = True
+        battery_pct = None
+        is_charging = None
+        try:
+            import psutil
+            b = psutil.sensors_battery()
+            if b:
+                battery_pct = int(b.percent)
+                is_charging = bool(b.power_plugged)
+        except Exception:
+            pass
+
         return DeviceInfo(
             os_name="Android",
             os_version=platform.version(),
@@ -24,14 +44,14 @@ class AndroidPlatformAdapter(BasePlatformAdapter):
             device_type="Mobile / Tablet",
             hostname=platform.node(),
             cpu_count=os.cpu_count() or 1,
-            memory_total_gb=4.0,
+            memory_total_gb=mem_gb,
             has_camera=True,
             camera_name="Android Camera HAL",
             has_microphone=True,
             microphone_count=1,
-            has_battery=True,
-            battery_percent=85,
-            is_charging=False,
+            has_battery=has_battery,
+            battery_percent=battery_pct,
+            is_charging=is_charging,
             has_bluetooth=True,
             bluetooth_device_name="Android Bluetooth Adapter",
             connected_accounts={"google": True},
@@ -70,3 +90,4 @@ class AndroidPlatformAdapter(BasePlatformAdapter):
     def lock_workstation(self) -> bool:
         logger.warning("Device lock on Android requires DevicePolicyManager administrative privileges.")
         return False
+

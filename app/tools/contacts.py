@@ -71,6 +71,53 @@ def find_matching_contacts(query: str) -> List[ContactDTO]:
 
 
 # ==========================================
+# Tool: find_contact
+# ==========================================
+class FindContactInput(BaseModel):
+    contact_name: str = Field(description="Name or partial name of the contact to find, e.g. 'Priya', 'Rahul'")
+
+class FindContactTool(BaseTool):
+    name = "find_contact"
+    description = "Searches your address book and retrieves contact details (phone, email, notes) without placing a call."
+    permission_level = PermissionLevel.SAFE
+    args_schema = FindContactInput
+
+    def execute(self, contact_name: str) -> ToolResult:
+        logger.info(f"Executing find_contact for '{contact_name}'")
+        matches = find_matching_contacts(contact_name)
+
+        if not matches:
+            return ToolResult(
+                tool_name=self.name,
+                success=False,
+                message=f"Boss, I couldn't find '{contact_name}' in your contacts. Would you like me to add them?",
+                error="CONTACT_NOT_FOUND"
+            )
+
+        if len(matches) == 1:
+            c = matches[0]
+            phone_str = f"Phone: {c.phone}" if c.phone else "No phone"
+            email_str = f" | Email: {c.email}" if c.email else ""
+            msg = f"Found contact {c.name} ({phone_str}{email_str})."
+            return ToolResult(
+                tool_name=self.name,
+                success=True,
+                message=msg,
+                data={"contact": c.to_dict()}
+            )
+
+        # Multiple matches
+        lines = [f"• {c.name}: {c.phone or 'No phone'}" for c in matches]
+        msg = f"Found {len(matches)} contacts matching '{contact_name}':\n" + "\n".join(lines)
+        return ToolResult(
+            tool_name=self.name,
+            success=True,
+            message=msg,
+            data={"matches": [c.to_dict() for c in matches]}
+        )
+
+
+# ==========================================
 # Tool: call_contact
 # ==========================================
 class CallContactInput(BaseModel):

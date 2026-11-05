@@ -24,7 +24,15 @@ from app.tools.memory_tools import StoreMemoryTool, ForgetMemoryTool
 from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, DeleteTaskTool, GetDailyBriefingTool
 from app.tools.media import PauseMusicTool, ResumeMusicTool, SkipMusicTrackTool, AdjustVolumeTool
 from app.tools.projects import OpenFolderTool, FindProjectAndOpenTool, OpenProjectGitHubTool
-from app.tools.contacts import CallContactTool, MessageContactTool, ListContactsTool, AddContactTool, DeleteContactTool, ImportContactsTool
+from app.tools.contacts import (
+    CallContactTool,
+    MessageContactTool,
+    ListContactsTool,
+    AddContactTool,
+    DeleteContactTool,
+    ImportContactsTool,
+    FindContactTool
+)
 from app.tools.camera import OpenCameraTool, RecordVideoTool
 from app.tools.gallery import OpenGalleryTool, ShowRecentPhotosTool
 from app.tools.gmail import (
@@ -41,6 +49,7 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
     """Register all standard DADUS tools."""
     tools = [
         # Contacts & Communication
+        FindContactTool(),
         CallContactTool(),
         MessageContactTool(),
         ListContactsTool(),

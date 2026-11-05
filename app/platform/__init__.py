@@ -29,3 +29,4 @@ __all__ = [
     "capability_registry",
     "get_platform_adapter"
 ]
+

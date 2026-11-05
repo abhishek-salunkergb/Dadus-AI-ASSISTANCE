@@ -392,3 +392,4 @@ class WindowsPlatformAdapter(BasePlatformAdapter):
         except Exception as ex:
             logger.error(f"LockWorkStation API call failed: {ex}")
             return False
+
