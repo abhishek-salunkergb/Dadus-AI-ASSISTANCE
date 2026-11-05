@@ -81,3 +81,4 @@ def test_lone_greeting_detection():
     assert WakeWordMatcher.is_lone_greeting("Hello.") is True
     assert WakeWordMatcher.is_lone_greeting("Hey Dadus") is False
     assert WakeWordMatcher.is_lone_greeting("Open Chrome") is False
+

@@ -90,3 +90,4 @@ class WakeWordMatcher:
                 curr.append(min(ins, dels, sub))
             prev = curr
         return prev[-1]
+

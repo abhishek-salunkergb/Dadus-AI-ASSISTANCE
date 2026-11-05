@@ -1,0 +1,46 @@
+# Git and Version Control
+.git/
+.gitignore
+.gitattributes
+
+# Environment Variables & Secrets (CRITICAL: Never bake credentials into Docker image)
+.env
+.env.*
+*.env
+credentials.json
+token.json
+gmail_token.json
+
+# Python cache & compiled bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing & Linting caches
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# Local Application Data & Logs (persisted via Docker volumes)
+data/
+logs/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & Editor Configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
