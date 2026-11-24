@@ -1,7 +1,19 @@
 """FastAPI backend server for DADUS.
 Exposes clean REST and WebSocket endpoints for Desktop UI and future Android mobile clients.
 """
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    Form,
+    HTTPException,
+    BackgroundTasks,
+    Depends,
+    WebSocket,
+    WebSocketDisconnect,
+    Request,
+    Header
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -11,6 +23,7 @@ from pathlib import Path
 import os
 import shutil
 import logging
+import platform
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
@@ -25,6 +38,9 @@ from app.tools.tasks import CreateTaskTool, ListTasksTool, CompleteTaskTool, Get
 from app.voice.tts import get_tts_provider
 from contextlib import asynccontextmanager
 from app.voice.stt import get_stt_provider
+from app.devices.device_manager import device_manager, DeviceType, DeviceCapability
+from app.devices.discovery import discovery_service
+from app.platform.adb_bridge import adb_bridge
 
 logger = logging.getLogger("DADUS.API")
 
@@ -43,7 +59,19 @@ async def lifespan(app: FastAPI):
         alarm_daemon.start()
     except Exception as ex:
         logger.warning(f"Could not start alarm daemon: {ex}")
+    try:
+        discovery_service.start()
+    except Exception as ex:
+        logger.warning(f"Could not start discovery service: {ex}")
+    try:
+        adb_bridge.sync_attached_android_devices()
+    except Exception as ex:
+        logger.debug(f"ADB device auto-sync note: {ex}")
     yield
+    try:
+        discovery_service.stop()
+    except Exception as ex:
+        logger.warning(f"Could not stop discovery service: {ex}")
     try:
         reminder_daemon.stop()
     except Exception as ex:
@@ -79,6 +107,7 @@ class ChatRequest(BaseModel):
     message: str = Field(description="User natural language command or message")
     session_id: Optional[str] = Field(default="default_session", description="Session ID for context")
     speak_response: Optional[bool] = Field(default=True, description="Whether to synthesize audio")
+    device_id: Optional[str] = Field(default=None, description="Optional client device ID (Windows, Android, Web)")
 
 class ConfirmationRequest(BaseModel):
     confirmation_id: str = Field(description="ID of the pending action")
@@ -108,11 +137,14 @@ def get_status():
     }
 
 @app.post("/api/chat")
-def process_chat(req: ChatRequest, background_tasks: BackgroundTasks):
+def process_chat(req: ChatRequest, background_tasks: BackgroundTasks, request: Request):
     """
     Process natural language command through DADUS agent.
     Returns agent text response, tool outcome, and audio URL.
     """
+    calling_device = req.device_id or request.headers.get("x-device-id") or "host_windows_pc"
+    device_manager.update_activity(calling_device)
+
     resp: AgentResponse = dadus_agent.process_input(req.message, req.session_id)
 
     audio_url = None
@@ -307,21 +339,128 @@ def get_audit_logs(limit: int = 50, db: Session = Depends(get_db)):
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).all()
     return {"logs": [l.to_dict() for l in logs]}
 # ==========================================
-# Connected Devices Endpoints (Multi-Device / Mobile)
+# Connected Devices Endpoints (Zero-Friction Multi-Device Onboarding)
 # ==========================================
+class AutoEnrollRequest(BaseModel):
+    device_name: str = Field(description="Display name of client device, e.g. 'Abhinav's Pixel 8'")
+    device_type: Optional[str] = Field(default="android_mobile", description="windows_desktop, android_mobile, web_client, mcp_client")
+    capabilities: Optional[List[str]] = Field(default_factory=list)
+    existing_device_id: Optional[str] = None
+    existing_token: Optional[str] = None
+
+
+@app.post("/api/devices/auto-enroll")
+def auto_enroll_device_endpoint(req: AutoEnrollRequest, request: Request):
+    """
+    Zero-friction auto-enrollment for client devices (Windows, Android, Mobile Companion).
+    Automatically creates/binds a trusted device record and returns long-lived auth credentials.
+    """
+    try:
+        dev_type = DeviceType(req.device_type)
+    except Exception:
+        dev_type = DeviceType.ANDROID_MOBILE if "android" in (req.device_type or "").lower() else DeviceType.WEB_CLIENT
+
+    parsed_caps = []
+    if req.capabilities:
+        for c in req.capabilities:
+            try:
+                parsed_caps.append(DeviceCapability(c))
+            except Exception:
+                pass
+
+    client_ip = request.client.host if request.client else None
+    dev, token, is_new = device_manager.auto_enroll_device(
+        name=req.device_name,
+        device_type=dev_type,
+        capabilities=parsed_caps,
+        existing_device_id=req.existing_device_id,
+        existing_token=req.existing_token,
+        ip_address=client_ip
+    )
+
+    return {
+        "status": "enrolled",
+        "is_new": is_new,
+        "device_id": dev.device_id,
+        "auth_token": token,
+        "name": dev.name,
+        "device_type": dev.device_type.value,
+        "capabilities": [c.value for c in dev.capabilities],
+        "hub_hostname": platform.node(),
+        "message": f"Device '{dev.name}' successfully connected to DADUS with full hardware capabilities."
+    }
+
+
+@app.get("/api/devices/verify")
+def verify_device_endpoint(
+    device_id: Optional[str] = None,
+    token: Optional[str] = None,
+    authorization: Optional[str] = Header(None)
+):
+    """Verify that a device credentials token is valid."""
+    auth_token = token
+    if not auth_token and authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split("Bearer ", 1)[1].strip()
+
+    if not device_id or not auth_token:
+        raise HTTPException(status_code=401, detail="Missing device_id or Bearer authentication token")
+
+    is_valid = device_manager.authenticate_device(device_id, auth_token)
+    if not is_valid:
+        raise HTTPException(status_code=403, detail="Invalid or revoked device authentication token")
+
+    dev = device_manager.get_device(device_id)
+    return {
+        "verified": True,
+        "device": {
+            "device_id": dev.device_id,
+            "name": dev.name,
+            "device_type": dev.device_type.value,
+            "capabilities": [c.value for c in dev.capabilities],
+            "last_active": dev.last_active.isoformat()
+        }
+    }
+
+
 @app.get("/api/devices")
 def list_connected_devices():
     """Retrieve all connected client devices (desktop, Android, web)."""
-    from app.devices import device_manager
-    return {"devices": [d.dict() for d in device_manager.list_devices()]}
+    devices = device_manager.list_devices()
+    return {
+        "count": len(devices),
+        "devices": [
+            {
+                "device_id": d.device_id,
+                "name": d.name,
+                "device_type": d.device_type.value,
+                "capabilities": [c.value for c in d.capabilities],
+                "last_active": d.last_active.isoformat(),
+                "registered_at": d.registered_at.isoformat(),
+                "ip_address": d.ip_address
+            }
+            for d in devices
+        ]
+    }
+
+
+@app.post("/api/devices/sync-attached")
+def sync_attached_hardware_devices():
+    """Detect and auto-mount attached mobile hardware (e.g. via USB or wireless ADB)."""
+    synced = adb_bridge.sync_attached_android_devices()
+    return {
+        "success": True,
+        "synced_count": len(synced),
+        "devices": [d.model_dump() if hasattr(d, "model_dump") else d.dict() for d in synced]
+    }
+
 
 @app.post("/api/devices/register")
 def register_connected_device(device_data: Dict[str, Any]):
     """Register a new device or mobile client."""
-    from app.devices import device_manager, ConnectedDevice
+    from app.devices import ConnectedDevice
     dev = ConnectedDevice(**device_data)
     registered = device_manager.register_device(dev)
-    return {"success": True, "device": registered.dict()}
+    return {"success": True, "device": registered.model_dump() if hasattr(registered, "model_dump") else registered.dict()}
 
 # ==========================================
 # Model Context Protocol (MCP) Endpoints

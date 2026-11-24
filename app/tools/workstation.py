@@ -217,3 +217,4 @@ class RestoreWorkstationStateTool(BaseTool):
                 message=f"Boss, failed to restore workstation state: {str(ex)}",
                 error=str(ex)
             )
+

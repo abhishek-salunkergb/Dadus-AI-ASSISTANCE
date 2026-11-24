@@ -141,6 +141,67 @@ class DeviceManager:
         self.register_device(dev, persist=True)
         return dev, raw_token
 
+    def auto_enroll_device(
+        self,
+        name: str,
+        device_type: DeviceType,
+        capabilities: Optional[List[DeviceCapability]] = None,
+        existing_device_id: Optional[str] = None,
+        existing_token: Optional[str] = None,
+        ip_address: Optional[str] = None
+    ) -> Tuple[ConnectedDevice, str, bool]:
+        """
+        Zero-friction auto-enrollment for client devices (Windows, Android, Mobile Companion).
+        If the device presents an existing valid device_id and token, updates activity and returns it.
+        If new, generates a persistent cryptographic identity, pairs the device, and persists it.
+        Returns: (ConnectedDevice, auth_token, is_new_enrollment)
+        """
+        if existing_device_id:
+            dev = self.get_device(existing_device_id)
+            if dev:
+                if existing_token and dev.auth_token and secrets.compare_digest(dev.auth_token, existing_token):
+                    # Existing verified device returning
+                    if capabilities:
+                        dev.capabilities = capabilities
+                    if ip_address:
+                        dev.ip_address = ip_address
+                    dev.last_active = datetime.utcnow()
+                    self.register_device(dev, persist=True)
+                    logger.info(f"Auto-enrolled existing device [{dev.device_id}] '{dev.name}' refreshed.")
+                    return dev, dev.auth_token, False
+
+        # New enrollment with default mobile/desktop capabilities if unspecified
+        caps = capabilities
+        if caps is None or len(caps) == 0:
+            if device_type == DeviceType.ANDROID_MOBILE:
+                caps = [
+                    DeviceCapability.AUDIO_PLAYBACK,
+                    DeviceCapability.MICROPHONE,
+                    DeviceCapability.LOCAL_APP_EXECUTION,
+                    DeviceCapability.HARDWARE_MEDIA_KEYS,
+                    DeviceCapability.SYSTEM_NOTIFICATIONS
+                ]
+            elif device_type == DeviceType.WINDOWS_DESKTOP:
+                caps = [
+                    DeviceCapability.AUDIO_PLAYBACK,
+                    DeviceCapability.MICROPHONE,
+                    DeviceCapability.SCREEN_CAPTURE,
+                    DeviceCapability.LOCAL_APP_EXECUTION,
+                    DeviceCapability.HARDWARE_MEDIA_KEYS,
+                    DeviceCapability.SYSTEM_NOTIFICATIONS
+                ]
+            else:
+                caps = [DeviceCapability.AUDIO_PLAYBACK, DeviceCapability.SYSTEM_NOTIFICATIONS]
+
+        dev, token = self.pair_new_device(
+            name=name,
+            device_type=device_type,
+            capabilities=caps,
+            ip_address=ip_address
+        )
+        logger.info(f"Zero-friction auto-enrolled NEW device [{dev.device_id}] '{dev.name}' ({dev.device_type.value})")
+        return dev, token, True
+
     def authenticate_device(self, device_id: str, auth_token: str) -> bool:
         """Validates incoming token against stored cryptographic digest."""
         dev = self.get_device(device_id)

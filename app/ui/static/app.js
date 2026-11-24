@@ -77,6 +77,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionId = 'session_' + Math.random().toString(36).substring(2, 9);
   let memoryCache = [];
 
+  // Zero-friction Auto-Enrollment on App Launch
+  let dadusDeviceId = localStorage.getItem('dadus_device_id') || null;
+  let dadusDeviceToken = localStorage.getItem('dadus_device_token') || null;
+
+  async function autoEnrollThisDevice() {
+    try {
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const platformName = isAndroid ? "Android Companion" : (isMobile ? "Mobile Companion" : "Web Workstation");
+      const devType = isAndroid ? "android_mobile" : (isMobile ? "web_client" : "web_client");
+
+      const res = await fetch('/api/devices/auto-enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_name: `${platformName} (${navigator.platform || 'Device'})`,
+          device_type: devType,
+          existing_device_id: dadusDeviceId,
+          existing_token: dadusDeviceToken,
+          capabilities: isMobile
+            ? ['audio_playback', 'microphone', 'local_app_execution', 'hardware_media_keys', 'system_notifications']
+            : ['audio_playback', 'system_notifications']
+        })
+      });
+
+      if (res.ok) {
+        const enrollment = await res.json();
+        dadusDeviceId = enrollment.device_id;
+        dadusDeviceToken = enrollment.auth_token;
+        localStorage.setItem('dadus_device_id', dadusDeviceId);
+        localStorage.setItem('dadus_device_token', dadusDeviceToken);
+        console.log('[DADUS] Zero-friction device ready:', dadusDeviceId);
+      }
+    } catch (e) {
+      console.debug('[DADUS] Device enrollment notice:', e);
+    }
+  }
+  autoEnrollThisDevice();
+
   // Set Dynamic Contextual Greeting
   function updateGreeting() {
     if (!greetingText) return;
@@ -407,13 +446,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (dadusDeviceId) headers['X-Device-ID'] = dadusDeviceId;
+      if (dadusDeviceToken) headers['Authorization'] = `Bearer ${dadusDeviceToken}`;
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({
           message: command,
           session_id: sessionId,
-          speak_response: audioEnabled
+          speak_response: audioEnabled,
+          device_id: dadusDeviceId || 'host_windows_pc'
         })
       });
 
