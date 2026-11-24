@@ -1,0 +1,19 @@
+{
+  "name": "DADUS AI Agent",
+  "short_name": "DADUS",
+  "description": "DADUS — Autonomous AI Assistant with Zero-Friction Multi-Device & Mobile Ecosystem",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020409",
+  "theme_color": "#020409",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/static/assets/dadus_logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

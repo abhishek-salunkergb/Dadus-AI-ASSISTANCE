@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import os
+import json
 import shutil
 import logging
 import platform
@@ -30,7 +31,7 @@ from app.config.settings import settings
 from app.agent.agent import dadus_agent, AgentResponse
 from app.tools.registry import tool_registry
 from app.security.confirmations import confirmation_manager
-from app.database.database import get_db, init_db
+from app.database.database import get_db, init_db, get_db_context
 from app.database.models import Reminder, ScheduleItem, MemoryItem, AuditLog, TaskItem, Alarm
 from app.productivity.reminder_daemon import reminder_daemon
 from app.productivity.alarm_daemon import alarm_daemon
@@ -461,6 +462,91 @@ def register_connected_device(device_data: Dict[str, Any]):
     dev = ConnectedDevice(**device_data)
     registered = device_manager.register_device(dev)
     return {"success": True, "device": registered.model_dump() if hasattr(registered, "model_dump") else registered.dict()}
+
+
+@app.get("/api/apps")
+def list_indexed_applications(q: Optional[str] = None):
+    """List indexed host applications across Win32, App Paths, UWP Store apps, and URI protocols."""
+    from app.tools.apps import AppDetector
+    all_apps = AppDetector.get_installed_apps()
+    clean_q = (q or "").strip().lower()
+
+    matched = []
+    for key, info in all_apps.items():
+        if not clean_q or clean_q in key or clean_q in info.name.lower() or (info.app_id and clean_q in info.app_id.lower()):
+            matched.append({
+                "key": key,
+                "name": info.name,
+                "executable_or_path": info.executable_or_path,
+                "source": info.source,
+                "app_id": info.app_id,
+                "protocol_uri": info.protocol_uri,
+                "package_name": info.package_name
+            })
+
+    # Sort alphabetically by app name
+    matched.sort(key=lambda x: x["name"].lower())
+
+    return {
+        "success": True,
+        "total_indexed": len(all_apps),
+        "count": len(matched),
+        "apps": matched[:80]
+    }
+
+
+@app.post("/api/apps/open")
+def launch_application_api(payload: Dict[str, Any]):
+    """Launch an indexed application directly from the UI or API."""
+    from app.tools.apps import OpenAppTool
+    app_name = payload.get("app_name") or payload.get("name")
+    if not app_name:
+        raise HTTPException(status_code=400, detail="Missing required 'app_name' field.")
+    tool = OpenAppTool()
+    res = tool.execute(app_name=app_name)
+    return {"success": res.success, "message": res.message, "data": res.data}
+
+
+@app.get("/api/workstation/snapshots")
+def get_workstation_snapshots():
+    """Retrieve saved workstation snapshots."""
+    from app.database.models import WorkstationSnapshot
+    with get_db_context() as db:
+        snapshots = db.query(WorkstationSnapshot).order_by(WorkstationSnapshot.id.desc()).all()
+        return {
+            "success": True,
+            "count": len(snapshots),
+            "snapshots": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                    "data": json.loads(s.snapshot_data_json) if s.snapshot_data_json else {}
+                }
+                for s in snapshots
+            ]
+        }
+
+
+@app.post("/api/workstation/save")
+def save_workstation_snapshot_api(payload: Optional[Dict[str, Any]] = None):
+    """Capture current workstation state into snapshot."""
+    from app.tools.workstation import SaveWorkstationStateTool
+    name = (payload or {}).get("name", "latest")
+    tool = SaveWorkstationStateTool()
+    res = tool.execute(name=name)
+    return {"success": res.success, "message": res.message, "data": res.data}
+
+
+@app.post("/api/workstation/restore")
+def restore_workstation_snapshot_api(payload: Optional[Dict[str, Any]] = None):
+    """Restore workstation state from snapshot."""
+    from app.tools.workstation import RestoreWorkstationStateTool
+    name = (payload or {}).get("name", "latest")
+    tool = RestoreWorkstationStateTool()
+    res = tool.execute(name=name)
+    return {"success": res.success, "message": res.message, "data": res.data}
+
 
 # ==========================================
 # Model Context Protocol (MCP) Endpoints

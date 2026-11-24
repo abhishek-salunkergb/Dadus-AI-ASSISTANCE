@@ -227,7 +227,7 @@ class DadusAgent:
                 else:
                     msg = response_msg or f"Boss, please specify: {', '.join(pending.options)}."
                     session.add_assistant_message(msg)
-                    return AgentResponse(text=msg, status="WAITING_CLARIFICATION", options=pending.options)
+                    return AgentResponse(text=msg, status="WAITING_CLARIFICATION", needs_clarification=True, options=pending.options)
 
         # Step 4: Contextual Pronoun / Repetition Resolution ('open it', 'close that', 'make it louder', 'do it again')
         ctx_tool, ctx_args, ctx_direct = ContextResolver.resolve_contextual_reference(clean_text, session)

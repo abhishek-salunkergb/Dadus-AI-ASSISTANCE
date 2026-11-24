@@ -18,6 +18,15 @@ def test_app_detector_known_apps():
     assert notepad is not None
     assert notepad.executable_or_path == "notepad.exe"
 
+def test_app_detector_uwp_and_app_paths():
+    """Verify AppDetector indexes Windows Store UWP apps, App Paths, and Protocols."""
+    apps = AppDetector.get_installed_apps()
+    assert len(apps) > 50  # Must discover all system and store apps
+
+    settings_app = AppDetector.find_app("settings")
+    assert settings_app is not None
+    assert "settings" in settings_app.name.lower() or "ms-settings:" in settings_app.executable_or_path.lower()
+
 def test_app_detector_not_found():
     """Verify AppDetector returns None for non-existent apps."""
     res = AppDetector.find_app("totally_fictional_application_9999")

@@ -143,6 +143,15 @@ class AdbBridge:
         out = self._run_cmd(args)
         return out is not None
 
+    def launch_package(self, package_name: str, serial: Optional[str] = None) -> bool:
+        """Launches an Android application by package name (e.g. com.whatsapp, com.spotify.music)."""
+        args = []
+        if serial:
+            args.extend(["-s", serial])
+        args.extend(["shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"])
+        out = self._run_cmd(args)
+        return out is not None
+
     def get_battery_level(self, serial: Optional[str] = None) -> Optional[int]:
         """Reads real battery percentage from connected Android device."""
         args = []
@@ -158,3 +167,4 @@ class AdbBridge:
 
 
 adb_bridge = AdbBridge()
+

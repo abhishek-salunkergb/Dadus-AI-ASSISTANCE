@@ -18,6 +18,13 @@
     .dadus-app-layout { display: flex; flex-direction: row; height: 100vh; width: 100vw; overflow: hidden; position: relative; }
   </style>
 
+  <!-- Progressive Web App (PWA) Manifest & Mobile Meta -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#020409">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DADUS">
+
   <link rel="stylesheet" href="/static/style.css?v=3.0">
 </head>
 <body class="dadus-body">
@@ -79,6 +86,10 @@
         <button class="nav-btn" data-panel="tools" title="MCP Tool Matrix">
           <span class="nav-btn-icon">🔌</span>
           <span class="nav-btn-text">MCP Tool Matrix</span>
+        </button>
+        <button class="nav-btn" data-panel="devices" title="Connected Devices & Ecosystem">
+          <span class="nav-btn-icon">📱</span>
+          <span class="nav-btn-text">Device Network</span>
         </button>
         <button class="nav-btn" data-panel="settings" title="System Configuration & Security">
           <span class="nav-btn-icon">⚙️</span>
@@ -438,7 +449,87 @@
         </section>
 
         <!-- ================================================================ -->
-        <!-- VIEW 7: CONFIGURATION & SECURITY -->
+        <!-- VIEW 7: CONNECTED DEVICE NETWORK & APPLICATION ACCESS HUB -->
+        <!-- ================================================================ -->
+        <section id="panelDevices" class="panel-view">
+          <div class="panel-container">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-heading">Connected Device Ecosystem & Apps</h2>
+                <p class="panel-sub">Zero-friction companion auto-enrollment, mobile hardware bridge (ADB), and multi-tier application launcher.</p>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button id="btnSyncHardware" class="action-btn" style="padding: 6px 14px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; color: #60a5fa; font-weight: 500; font-size: 0.82rem;">
+                  <span>🔄 Scan Mobile Devices</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Current Client Node -->
+            <div class="devices-current-banner" id="currentDeviceBanner" style="margin-bottom: 20px; padding: 14px 18px; background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #10b981; font-weight: 600;">Active Client Session</div>
+                <div id="currentDeviceTitle" style="font-size: 1.05rem; font-weight: 600; color: #f8fafc; margin-top: 2px;">Detecting client device...</div>
+                <div id="currentDeviceMeta" style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">Enrolling zero-friction token...</div>
+              </div>
+              <div class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">
+                SECURE HARDWARE ENROLLED
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+              <!-- Paired Device Grid -->
+              <div>
+                <h3 style="font-size: 0.95rem; font-weight: 600; color: #e2e8f0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                  <span>📱 Enrolled Hardware & Mobiles</span>
+                  <span class="badge" id="deviceCountBadge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;">0 Online</span>
+                </h3>
+                <div id="devicesListContainer" style="display: flex; flex-direction: column; gap: 10px;">
+                  <div class="empty-state">Loading enrolled companions...</div>
+                </div>
+              </div>
+
+              <!-- Workstation Snapshots & Remote State -->
+              <div>
+                <h3 style="font-size: 0.95rem; font-weight: 600; color: #e2e8f0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                  <span>💻 Workstation State & Snapshots</span>
+                </h3>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px;">
+                  <div style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 8px;">Host Workstation: <strong>Windows 11</strong></div>
+                  <div style="font-size: 0.8rem; color: #94a3b8; line-height: 1.5; margin-bottom: 12px;">
+                    Multi-device state synchronization enables saving your active development workspace, git branches, and project layout, and restoring them seamlessly.
+                  </div>
+                  <div style="display: flex; gap: 10px;">
+                    <button id="btnSaveSnapshot" class="action-btn" style="padding: 6px 12px; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 8px; color: #c084fc; font-size: 0.8rem;">
+                      💾 Capture Snapshot
+                    </button>
+                    <button id="btnRestoreSnapshot" class="action-btn" style="padding: 6px 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #e2e8f0; font-size: 0.8rem;">
+                      ⚡ Restore Snapshot
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Application Access Matrix -->
+            <div style="margin-top: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <h3 style="font-size: 0.95rem; font-weight: 600; color: #e2e8f0;">Indexed Device Applications</h3>
+                  <p style="font-size: 0.78rem; color: #94a3b8;" id="appsSubheading">450+ Win32, App Paths, UWP Store apps, and URI protocols executable directly by voice or click.</p>
+                </div>
+                <input type="text" id="appFilterInput" placeholder="Filter apps (e.g. excel, whatsapp, vlc)..." style="width: 260px; padding: 6px 12px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; color: #f8fafc; font-size: 0.82rem;">
+              </div>
+              <div id="appsGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
+                <div class="empty-state">Loading indexed applications...</div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ================================================================ -->
+        <!-- VIEW 8: CONFIGURATION & SECURITY -->
         <!-- ================================================================ -->
         <section id="panelSettings" class="panel-view">
           <div class="panel-container">

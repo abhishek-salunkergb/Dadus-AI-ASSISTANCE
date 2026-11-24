@@ -160,3 +160,4 @@ def test_adb_bridge_detection_and_sync():
         synced = bridge.sync_attached_android_devices()
         assert len(synced) == 1
         assert synced[0].device_id == "android_adb_emulator-5554"
+

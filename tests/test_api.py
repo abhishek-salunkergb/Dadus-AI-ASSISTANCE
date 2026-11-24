@@ -158,3 +158,43 @@ def test_sync_voice_state_helper():
     assert voice_broadcaster.current_state == "thinking"
     sync_voice_state("idle")
     assert voice_broadcaster.current_state == "idle"
+
+
+def test_api_list_indexed_apps(client):
+    """Verify /api/apps returns indexed system and installed applications."""
+    resp = client.get("/api/apps")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["total_indexed"] > 0
+    assert len(data["apps"]) > 0
+
+    # Test filtering
+    filter_resp = client.get("/api/apps?q=chrome")
+    assert filter_resp.status_code == 200
+    fdata = filter_resp.json()
+    assert fdata["success"] is True
+    assert any("chrome" in a["name"].lower() or "chrome" in a["key"] for a in fdata["apps"])
+
+
+def test_api_workstation_snapshots_crud(client):
+    """Verify workstation snapshot capture, list, and restoration via REST API."""
+    # 1. Capture snapshot
+    save_resp = client.post("/api/workstation/save", json={"name": "api_test_snapshot"})
+    assert save_resp.status_code == 200
+    sdata = save_resp.json()
+    assert sdata["success"] is True
+
+    # 2. List snapshots
+    list_resp = client.get("/api/workstation/snapshots")
+    assert list_resp.status_code == 200
+    ldata = list_resp.json()
+    assert ldata["success"] is True
+    assert any(s["name"] == "api_test_snapshot" for s in ldata["snapshots"])
+
+    # 3. Restore snapshot
+    restore_resp = client.post("/api/workstation/restore", json={"name": "api_test_snapshot"})
+    assert restore_resp.status_code == 200
+    rdata = restore_resp.json()
+    assert rdata["success"] is True
+

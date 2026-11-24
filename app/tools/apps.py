@@ -33,17 +33,20 @@ SYSTEM_APPS = {
 class AppInfo(BaseModel):
     name: str
     executable_or_path: str
-    source: str  # registry, start_menu, system, path
+    source: str  # system, start_apps, app_paths, start_menu, registry, path, special, protocol, android
+    app_id: Optional[str] = None
+    protocol_uri: Optional[str] = None
+    package_name: Optional[str] = None
 
 class AppDetector:
-    """Discovers installed desktop applications across Windows."""
+    """Discovers installed desktop and modern store applications across Windows & mobile platforms."""
     _cached_apps: Optional[Dict[str, AppInfo]] = None
     _cache_time: float = 0.0
     _CACHE_TTL_SECONDS: float = 600.0
 
     @classmethod
     def get_installed_apps(cls, force_refresh: bool = False) -> Dict[str, AppInfo]:
-        """Scans registry, start menu, and PATH to index installed applications with fast caching."""
+        """Scans registry, App Paths, StartApps (UWP), start menu, and PATH with fast caching."""
         import time
         now = time.time()
         if not force_refresh and cls._cached_apps is not None and (now - cls._cache_time < cls._CACHE_TTL_SECONDS):
@@ -51,9 +54,60 @@ class AppDetector:
 
         apps: Dict[str, AppInfo] = {}
 
-        # 1. System apps
+        # 1. Well-known Windows system utilities (instant 0ms)
         for name, exe in SYSTEM_APPS.items():
             apps[name.lower()] = AppInfo(name=name.title(), executable_or_path=exe, source="system")
+
+        # 2. Windows Registered App Paths (HKLM & HKCU - e.g. Excel, Word, PowerPoint, VLC, Photoshop)
+        try:
+            import winreg
+            for hive in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
+                try:
+                    with winreg.OpenKey(hive, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths") as ap_key:
+                        count = winreg.QueryInfoKey(ap_key)[0]
+                        for i in range(count):
+                            try:
+                                exe_name = winreg.EnumKey(ap_key, i)
+                                with winreg.OpenKey(ap_key, exe_name) as item_key:
+                                    raw_p, _ = winreg.QueryValueEx(item_key, "")
+                                    if raw_p:
+                                        clean_p = raw_p.strip('"')
+                                        if os.path.exists(clean_p):
+                                            stem = Path(clean_p).stem.lower()
+                                            if stem not in apps:
+                                                apps[stem] = AppInfo(name=stem.title(), executable_or_path=clean_p, source="app_paths")
+                                            base_no_ext = exe_name.lower().replace(".exe", "")
+                                            if base_no_ext not in apps:
+                                                apps[base_no_ext] = AppInfo(name=base_no_ext.title(), executable_or_path=clean_p, source="app_paths")
+                            except OSError:
+                                pass
+                except OSError:
+                    pass
+        except Exception:
+            pass
+
+        # 3. Windows Modern Store Apps & UWP via Get-StartApps (shell:AppsFolder)
+        try:
+            ps_cmd = ["powershell.exe", "-NoProfile", "-Command", "Get-StartApps | ConvertTo-Json -Compress"]
+            out = subprocess.check_output(ps_cmd, stderr=subprocess.DEVNULL, timeout=4).decode("utf-8", errors="ignore")
+            import json
+            start_apps_data = json.loads(out)
+            if isinstance(start_apps_data, dict):
+                start_apps_data = [start_apps_data]
+            for item in start_apps_data:
+                aname = item.get("Name", "").strip()
+                appid = item.get("AppID", "").strip()
+                if aname and appid:
+                    lower_a = aname.lower()
+                    if lower_a not in apps:
+                        apps[lower_a] = AppInfo(
+                            name=aname,
+                            executable_or_path=f"shell:AppsFolder\\{appid}",
+                            source="start_apps",
+                            app_id=appid
+                        )
+        except Exception as ex:
+            logger.debug(f"Get-StartApps discovery note: {ex}")
 
         # 2. Windows Start Menu shortcuts (.lnk files)
         start_menu_dirs = [
@@ -151,6 +205,50 @@ class AppDetector:
                     apps[name] = AppInfo(name=name.title(), executable_or_path=p, source="special")
                     break
 
+        # 6. Registered URI Protocols (Direct instant OS handler activation)
+        URI_PROTOCOLS = {
+            "whatsapp": "whatsapp:",
+            "settings": "ms-settings:",
+            "windows settings": "ms-settings:",
+            "clock": "ms-clock:",
+            "alarms": "ms-clock:",
+            "photos": "ms-photos:",
+            "microsoft store": "ms-windows-store:",
+            "store": "ms-windows-store:",
+            "todo": "ms-todo:",
+            "microsoft todo": "ms-todo:",
+            "teams": "msteams:",
+            "microsoft teams": "msteams:",
+            "phone link": "ms-phone:"
+        }
+        for uname, uri in URI_PROTOCOLS.items():
+            if uname not in apps:
+                apps[uname] = AppInfo(name=uname.title(), executable_or_path=uri, source="protocol", protocol_uri=uri)
+
+        # 7. Common Android Mobile Packages (For remote companion / ADB execution)
+        ANDROID_PACKAGES = {
+            "whatsapp": "com.whatsapp",
+            "spotify": "com.spotify.music",
+            "youtube": "com.google.android.youtube",
+            "chrome": "com.android.chrome",
+            "gmail": "com.google.android.gm",
+            "instagram": "com.instagram.android",
+            "telegram": "org.telegram.messenger",
+            "maps": "com.google.android.apps.maps",
+            "camera": "com.android.camera",
+            "phone": "com.android.dialer",
+            "photos": "com.google.android.apps.photos"
+        }
+        for pname, pkg in ANDROID_PACKAGES.items():
+            apk_key = f"android_{pname}"
+            if apk_key not in apps:
+                apps[apk_key] = AppInfo(
+                    name=f"{pname.title()} (Mobile)",
+                    executable_or_path=pkg,
+                    source="android",
+                    package_name=pkg
+                )
+
         cls._cached_apps = apps
         cls._cache_time = now
         return apps
@@ -166,11 +264,7 @@ class AppDetector:
 
         apps = cls.get_installed_apps()
 
-        # Direct exact match
-        if clean_q in apps:
-            return apps[clean_q]
-
-        # Common aliases
+        # Common aliases (evaluated first so canonical branding takes precedence over generic App Paths stems)
         aliases = {
             "chrome": "google chrome",
             "vscode": "visual studio code",
@@ -187,6 +281,10 @@ class AppDetector:
             target = aliases[clean_q]
             if target in apps:
                 return apps[target]
+
+        # Direct exact match
+        if clean_q in apps:
+            return apps[clean_q]
 
         # Substring / partial match
         for key, info in apps.items():
@@ -304,7 +402,28 @@ class OpenAppTool(BaseTool):
                 return self._build_success_result(app_info.name, "window_focused", target)
 
             try:
-                # Direct verified launch
+                # 1. Direct AppID or shell:AppsFolder launch (Windows Store / UWP apps)
+                if app_info.app_id or target.lower().startswith("shell:appsfolder\\"):
+                    shell_target = target if target.lower().startswith("shell:appsfolder\\") else f"shell:AppsFolder\\{app_info.app_id}"
+                    os.startfile(shell_target)
+                    import time; time.sleep(0.3)
+                    return self._build_success_result(app_info.name, "store_app", shell_target)
+
+                # 2. Registered URI Protocol launch (e.g. whatsapp:, ms-settings:, ms-clock:)
+                if app_info.protocol_uri:
+                    os.startfile(app_info.protocol_uri)
+                    import time; time.sleep(0.3)
+                    return self._build_success_result(app_info.name, "protocol_app", app_info.protocol_uri)
+
+                # 3. Android companion package launch (via ADB bridge if available)
+                if app_info.package_name:
+                    from app.platform.adb_bridge import adb_bridge
+                    if adb_bridge.is_available:
+                        launched = adb_bridge.launch_package(app_info.package_name)
+                        if launched:
+                            return self._build_success_result(app_info.name, "android_package", app_info.package_name)
+
+                # 4. Direct verified Win32 executable or .lnk launch
                 if target.lower().endswith(".lnk") or os.path.exists(target):
                     os.startfile(target)
                 else:

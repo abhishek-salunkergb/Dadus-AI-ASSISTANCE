@@ -620,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
     memory: { title: 'Neural Memory Store', sub: 'Stored Facts, Personal Preferences & Knowledge' },
     activity: { title: 'Activity & Audit Logs', sub: 'Cryptographic Operations & Safety Logs' },
     tools: { title: 'MCP Tool Matrix', sub: 'Registered System Tools & External Integrations' },
+    devices: { title: 'Device Network & Apps', sub: 'Zero-Friction Companion Ecosystem, ADB Bridges & 450+ Host Apps' },
     settings: { title: 'System Configuration', sub: 'Holographic Parameters & Security Guardrails' }
   };
 
@@ -644,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (panelId === 'memory') loadMemoryData();
     if (panelId === 'activity') loadAuditLogs();
     if (panelId === 'tools') loadToolsMatrix();
+    if (panelId === 'devices') loadDevicesData();
     if (panelId === 'home' && dadusOrb) {
       setTimeout(() => dadusOrb._handleResize(), 50);
     }
@@ -1116,6 +1118,210 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   syncPermissions();
+
+  // ==========================================================================
+  // 14. Device Network & Application Matrix
+  // ==========================================================================
+  let cachedAppsList = [];
+
+  async function loadDevicesData() {
+    // 1. Current Device Identity Banner
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const platformName = isAndroid ? "Android Companion" : (isMobile ? "Mobile Companion" : "Web Workstation");
+    const currentTitle = document.getElementById('currentDeviceTitle');
+    const currentMeta = document.getElementById('currentDeviceMeta');
+    if (currentTitle) {
+      currentTitle.textContent = `${platformName} (${navigator.platform || 'Client'})`;
+    }
+    if (currentMeta) {
+      const devId = localStorage.getItem('dadus_device_id') || 'Enrolled in Session';
+      currentMeta.textContent = `ID: ${devId} • Hardware Access: Active • Continuous Sync: Ready`;
+    }
+
+    // 2. Fetch Enrolled Devices from Server
+    try {
+      const devRes = await fetch('/api/devices');
+      if (devRes.ok) {
+        const dData = await devRes.json();
+        const container = document.getElementById('devicesListContainer');
+        const badge = document.getElementById('deviceCountBadge');
+        if (badge) badge.textContent = `${dData.count || 0} Connected`;
+
+        if (container) {
+          if (!dData.devices || dData.devices.length === 0) {
+            container.innerHTML = '<div class="empty-state">No external devices paired yet. Attached USB/ADB phones or local mobile apps will auto-appear here.</div>';
+          } else {
+            container.innerHTML = dData.devices.map(d => {
+              const icon = d.device_type === 'android_mobile' ? '📱' : (d.device_type === 'desktop' ? '🖥️' : '💻');
+              const caps = (d.capabilities || []).map(c => `<span style="font-size: 0.68rem; background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px; color: #94a3b8;">${c.replace(/_/g, ' ')}</span>`).join(' ');
+              return `
+                <div class="device-item-card">
+                  <div class="device-card-left">
+                    <div class="device-icon-box">${icon}</div>
+                    <div>
+                      <div style="font-size: 0.88rem; font-weight: 600; color: #f1f5f9;">${d.device_name || 'Companion Device'}</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 1px;">Type: ${d.device_type} • ID: ${d.device_id.substring(0, 16)}...</div>
+                      <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">${caps}</div>
+                    </div>
+                  </div>
+                  <div class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; padding: 2px 8px; border-radius: 6px;">
+                    ONLINE
+                  </div>
+                </div>
+              `;
+            }).join('');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load devices:', e);
+    }
+
+    // 3. Load Indexed Applications
+    loadIndexedApps();
+  }
+
+  async function loadIndexedApps(query = '') {
+    const grid = document.getElementById('appsGridContainer');
+    const subheading = document.getElementById('appsSubheading');
+    if (!grid) return;
+
+    try {
+      const url = query ? `/api/apps?q=${encodeURIComponent(query)}` : '/api/apps';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        cachedAppsList = data.apps || [];
+        if (subheading && data.total_indexed) {
+          subheading.textContent = `${data.total_indexed} Win32, App Paths, UWP Store apps, and URI protocols executable directly by voice or click.`;
+        }
+
+        if (cachedAppsList.length === 0) {
+          grid.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">No matching applications found.</div>';
+          return;
+        }
+
+        grid.innerHTML = cachedAppsList.map(app => {
+          const srcClass = `source-${app.source || 'special'}`;
+          return `
+            <div class="app-card">
+              <div style="min-width: 0; flex: 1; margin-right: 10px;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                  <span style="font-size: 0.88rem; font-weight: 600; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${app.name}</span>
+                  <span class="app-source-pill ${srcClass}">${app.source}</span>
+                </div>
+                <div style="font-size: 0.72rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${app.executable_or_path || ''}">
+                  ${app.app_id || app.protocol_uri || app.package_name || app.executable_or_path || ''}
+                </div>
+              </div>
+              <button class="app-launch-btn" data-app="${app.key || app.name}" style="padding: 4px 10px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 6px; color: #a5b4fc; font-size: 0.75rem; font-weight: 500; cursor: pointer; white-space: nowrap;">
+                Launch
+              </button>
+            </div>
+          `;
+        }).join('');
+
+        // Attach launch handlers
+        grid.querySelectorAll('.app-launch-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const appName = btn.getAttribute('data-app');
+            btn.textContent = 'Opening...';
+            btn.style.opacity = '0.6';
+            try {
+              const openRes = await fetch('/api/apps/open', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ app_name: appName })
+              });
+              const oData = await openRes.json();
+              btn.textContent = oData.success ? 'Launched ✓' : 'Failed ✕';
+              setTimeout(() => {
+                btn.textContent = 'Launch';
+                btn.style.opacity = '1';
+              }, 2000);
+            } catch (err) {
+              btn.textContent = 'Error';
+              setTimeout(() => { btn.textContent = 'Launch'; btn.style.opacity = '1'; }, 2000);
+            }
+          });
+        });
+      }
+    } catch (e) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Failed to inspect applications.</div>';
+    }
+  }
+
+  // Filter input debouncing
+  const appFilterInput = document.getElementById('appFilterInput');
+  if (appFilterInput) {
+    let debounceTimer = null;
+    appFilterInput.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadIndexedApps(e.target.value);
+      }, 250);
+    });
+  }
+
+  // Mobile ADB Hardware scan button
+  const btnSyncHardware = document.getElementById('btnSyncHardware');
+  if (btnSyncHardware) {
+    btnSyncHardware.addEventListener('click', async () => {
+      btnSyncHardware.textContent = 'Scanning ADB...';
+      try {
+        const res = await fetch('/api/devices/sync-attached', { method: 'POST' });
+        const data = await res.json();
+        btnSyncHardware.textContent = `Synced (${data.synced_count || 0}) ✓`;
+        setTimeout(() => { btnSyncHardware.textContent = '🔄 Scan Mobile Devices'; }, 2000);
+        loadDevicesData();
+      } catch (e) {
+        btnSyncHardware.textContent = 'Scan Failed ✕';
+        setTimeout(() => { btnSyncHardware.textContent = '🔄 Scan Mobile Devices'; }, 2000);
+      }
+    });
+  }
+
+  // Workstation state capture and restore
+  const btnSaveSnapshot = document.getElementById('btnSaveSnapshot');
+  if (btnSaveSnapshot) {
+    btnSaveSnapshot.addEventListener('click', async () => {
+      btnSaveSnapshot.textContent = 'Capturing...';
+      try {
+        const res = await fetch('/api/workstation/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'manual_ui_snapshot' })
+        });
+        const data = await res.json();
+        btnSaveSnapshot.textContent = data.success ? 'Saved ✓' : 'Failed ✕';
+        setTimeout(() => { btnSaveSnapshot.textContent = '💾 Capture Snapshot'; }, 2000);
+      } catch (e) {
+        btnSaveSnapshot.textContent = 'Error ✕';
+        setTimeout(() => { btnSaveSnapshot.textContent = '💾 Capture Snapshot'; }, 2000);
+      }
+    });
+  }
+
+  const btnRestoreSnapshot = document.getElementById('btnRestoreSnapshot');
+  if (btnRestoreSnapshot) {
+    btnRestoreSnapshot.addEventListener('click', async () => {
+      btnRestoreSnapshot.textContent = 'Restoring...';
+      try {
+        const res = await fetch('/api/workstation/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'manual_ui_snapshot' })
+        });
+        const data = await res.json();
+        btnRestoreSnapshot.textContent = data.success ? 'Restored ✓' : 'Failed ✕';
+        setTimeout(() => { btnRestoreSnapshot.textContent = '⚡ Restore Snapshot'; }, 2000);
+      } catch (e) {
+        btnRestoreSnapshot.textContent = 'Error ✕';
+        setTimeout(() => { btnRestoreSnapshot.textContent = '⚡ Restore Snapshot'; }, 2000);
+      }
+    });
+  }
 
   // Device Hardware and Profile Inspector
   async function loadDeviceInfo() {
