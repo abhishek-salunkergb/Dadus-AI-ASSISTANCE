@@ -22,6 +22,7 @@ class AlarmDaemon:
     def __init__(self, check_interval_seconds: float = 1.0):
         self.check_interval = check_interval_seconds
         self._running = False
+        self._wake_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._listeners: List[Callable[[dict], None]] = []
 
@@ -29,18 +30,24 @@ class AlarmDaemon:
         """Register a callback for fired alarms (e.g., UI WebSockets)."""
         self._listeners.append(listener)
 
+    def notify_change(self) -> None:
+        """Wakes the background daemon immediately when alarms are added, modified, or cancelled."""
+        self._wake_event.set()
+
     def start(self) -> None:
         """Start the background daemon thread."""
         if self._running:
             return
         self._running = True
+        self._wake_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True, name="DADUS-AlarmDaemon")
         self._thread.start()
-        logger.info("Background Alarm Daemon started.")
+        logger.info("Background Alarm Daemon started (event-driven).")
 
     def stop(self) -> None:
         """Stop the background daemon thread."""
         self._running = False
+        self._wake_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         logger.info("Background Alarm Daemon stopped.")
@@ -54,10 +61,17 @@ class AlarmDaemon:
 
         while self._running:
             try:
-                self._check_due_alarms()
+                next_due_secs = self._check_due_alarms()
             except Exception as ex:
                 logger.error(f"Error in alarm loop: {ex}")
-            time.sleep(self.check_interval)
+                next_due_secs = self.check_interval
+
+            # Sleep efficiently until next alarm is due, or until wake_event is signalled,
+            # with a 60-second safety clamp for clock adjustments / sleep recovery
+            wait_time = min(next_due_secs, 60.0) if next_due_secs is not None else 60.0
+            wait_time = max(0.05, wait_time)
+            self._wake_event.wait(timeout=wait_time)
+            self._wake_event.clear()
 
     def _check_missed_alarms(self) -> None:
         """Identifies alarms that matured while the system was offline, sleeping, or restarting."""
@@ -102,7 +116,7 @@ class AlarmDaemon:
                     a.status = "missed"
             db.flush()
 
-    def _check_due_alarms(self) -> None:
+    def _check_due_alarms(self) -> Optional[float]:
         """Finds and executes alarms that are due right now."""
         now = datetime.now()
         with get_db_context() as db:
@@ -168,6 +182,17 @@ class AlarmDaemon:
                         pass
 
             db.flush()
+
+            # Calculate seconds to next closest upcoming alarm for optimal event-driven sleeping
+            next_alarm = db.query(Alarm).filter(
+                Alarm.status == "scheduled",
+                Alarm.target_time > now
+            ).order_by(Alarm.target_time.asc()).first()
+
+            if next_alarm:
+                diff = (next_alarm.target_time - datetime.now()).total_seconds()
+                return max(0.0, diff)
+            return None
 
     def _play_alarm_sound(self) -> None:
         """Plays an audible alarm sound via Windows system sound or chime."""

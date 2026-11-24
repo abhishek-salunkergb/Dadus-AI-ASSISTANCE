@@ -198,6 +198,13 @@ class IntentRouter:
             query_str = f"{topic} .pdf".strip() if topic else "latest .pdf"
             return PlannedToolCall(tool_name="search_files", arguments={"query": query_str}), None
 
+        # Workstation session snapshot & restoration ("Wrap Up" / "Resume Work")
+        if any(p in lower for p in ["wrap up my work", "wrap up my workspace", "save my workstation", "save my work state", "wrap up workspace", "save workstation"]):
+            return PlannedToolCall(tool_name="save_workstation_state", arguments={"name": "latest"}), None
+
+        if any(p in lower for p in ["resume my work", "resume work", "restore my workstation", "restore my workspace", "restore workstation", "resume workspace"]):
+            return PlannedToolCall(tool_name="restore_workstation_state", arguments={"name": "latest"}), None
+
         # Find contact - routes to dedicated find_contact tool instead of placing call
         find_contact_match = re.search(r"\b(?:find|search|lookup|look up)\s+(?:my\s+)?contact\s+([a-zA-Z\s]+)", clean, re.IGNORECASE)
         if find_contact_match:

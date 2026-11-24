@@ -171,3 +171,66 @@ class Alarm(Base):
             "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None
         }
 
+
+class SessionRecord(Base):
+    """Stores persistent multi-turn agent conversation session state."""
+    __tablename__ = "sessions"
+
+    session_id = Column(String(100), primary_key=True, index=True)
+    state_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "session_id": self.session_id,
+            "state_json": self.state_json,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class PairedDevice(Base):
+    """Stores registered client devices and cryptographic authentication tokens."""
+    __tablename__ = "paired_devices"
+
+    device_id = Column(String(100), primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    device_type = Column(String(50), nullable=False)
+    capabilities_json = Column(Text, nullable=False, default="[]")
+    auth_token = Column(String(255), nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_active = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "device_id": self.device_id,
+            "name": self.name,
+            "device_type": self.device_type,
+            "capabilities_json": self.capabilities_json,
+            "auth_token": self.auth_token,
+            "ip_address": self.ip_address,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_active": self.last_active.isoformat() if self.last_active else None
+        }
+
+
+class WorkstationSnapshot(Base):
+    """Stores workstation environment snapshots (active projects, git states, apps)."""
+    __tablename__ = "workstation_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(255), nullable=False, default="default")
+    snapshot_data_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "snapshot_data_json": self.snapshot_data_json,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+

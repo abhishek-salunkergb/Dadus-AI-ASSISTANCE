@@ -44,6 +44,7 @@ from app.tools.gmail import (
     SendEmailTool
 )
 from app.tools.logs import CleanLogsTool
+from app.tools.workstation import SaveWorkstationStateTool, RestoreWorkstationStateTool
 
 def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
     """Register all standard DADUS tools."""
@@ -115,7 +116,10 @@ def register_default_tools(registry: ToolRegistry = tool_registry) -> None:
         OpenGalleryTool(),
         ShowRecentPhotosTool(),
         # Safe Log & Maintenance
-        CleanLogsTool()
+        CleanLogsTool(),
+        # Workstation State Snapshots
+        SaveWorkstationStateTool(),
+        RestoreWorkstationStateTool()
     ]
     for tool in tools:
         registry.register(tool)

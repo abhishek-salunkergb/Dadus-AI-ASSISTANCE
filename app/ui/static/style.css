@@ -8,7 +8,7 @@
    -------------------------------------------------------------------------- */
 :root {
   /* Obsidian Space Backdrop */
-  --bg-deep: #020409;
+  --bg-deep: #05050596;
   --bg-sidebar: rgba(5, 9, 20, 0.92);
   --bg-header: rgba(4, 8, 18, 0.75);
   --bg-card: rgba(8, 15, 30, 0.75);
@@ -61,13 +61,16 @@
 /* --------------------------------------------------------------------------
    2. Comprehensive Universal Reset & Input Defaults
    -------------------------------------------------------------------------- */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -79,7 +82,10 @@ html, body {
 }
 
 /* Absolute reset for buttons, inputs, textareas, selects */
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -122,7 +128,7 @@ button, input, select, textarea {
 .ambient-grid {
   position: fixed;
   inset: 0;
-  background-image: 
+  background-image:
     linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
   background-size: 44px 44px;
@@ -206,7 +212,9 @@ button, input, select, textarea {
 }
 
 @keyframes rotateRing {
-  100% { transform: rotate(360deg); }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .brand-text {
@@ -257,8 +265,17 @@ button, input, select, textarea {
 }
 
 @keyframes pulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
 }
 
 /* Sidebar Navigation Items */
@@ -426,7 +443,8 @@ button, input, select, textarea {
 }
 
 /* Pill Toggle & Header Buttons */
-.pill-toggle, .pill-btn {
+.pill-toggle,
+.pill-btn {
   background: var(--bg-pill);
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
@@ -440,7 +458,8 @@ button, input, select, textarea {
   transition: all var(--transition-fast);
 }
 
-.pill-toggle:hover, .pill-btn:hover {
+.pill-toggle:hover,
+.pill-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.18);
@@ -704,18 +723,48 @@ button, input, select, textarea {
   opacity: 1;
 }
 
-.live-wave-equalizer.active span:nth-child(1) { animation: wavePulse 0.55s infinite ease-in-out; }
-.live-wave-equalizer.active span:nth-child(2) { animation: wavePulse 0.42s infinite ease-in-out 0.1s; }
-.live-wave-equalizer.active span:nth-child(3) { animation: wavePulse 0.65s infinite ease-in-out 0.2s; }
-.live-wave-equalizer.active span:nth-child(4) { animation: wavePulse 0.48s infinite ease-in-out 0.15s; }
-.live-wave-equalizer.active span:nth-child(5) { animation: wavePulse 0.62s infinite ease-in-out 0.25s; }
-.live-wave-equalizer.active span:nth-child(6) { animation: wavePulse 0.52s infinite ease-in-out 0.05s; }
-.live-wave-equalizer.active span:nth-child(7) { animation: wavePulse 0.40s infinite ease-in-out 0.18s; }
-.live-wave-equalizer.active span:nth-child(8) { animation: wavePulse 0.58s infinite ease-in-out 0.3s; }
+.live-wave-equalizer.active span:nth-child(1) {
+  animation: wavePulse 0.55s infinite ease-in-out;
+}
+
+.live-wave-equalizer.active span:nth-child(2) {
+  animation: wavePulse 0.42s infinite ease-in-out 0.1s;
+}
+
+.live-wave-equalizer.active span:nth-child(3) {
+  animation: wavePulse 0.65s infinite ease-in-out 0.2s;
+}
+
+.live-wave-equalizer.active span:nth-child(4) {
+  animation: wavePulse 0.48s infinite ease-in-out 0.15s;
+}
+
+.live-wave-equalizer.active span:nth-child(5) {
+  animation: wavePulse 0.62s infinite ease-in-out 0.25s;
+}
+
+.live-wave-equalizer.active span:nth-child(6) {
+  animation: wavePulse 0.52s infinite ease-in-out 0.05s;
+}
+
+.live-wave-equalizer.active span:nth-child(7) {
+  animation: wavePulse 0.40s infinite ease-in-out 0.18s;
+}
+
+.live-wave-equalizer.active span:nth-child(8) {
+  animation: wavePulse 0.58s infinite ease-in-out 0.3s;
+}
 
 @keyframes wavePulse {
-  0%, 100% { height: 5px; }
-  50% { height: 18px; }
+
+  0%,
+  100% {
+    height: 5px;
+  }
+
+  50% {
+    height: 18px;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -946,8 +995,15 @@ button, input, select, textarea {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dialogue-card.user {
@@ -984,9 +1040,20 @@ button, input, select, textarea {
   font-weight: 600;
 }
 
-.badge.user-badge { background: rgba(0, 119, 255, 0.3); color: #93c5fd; }
-.badge.assistant-badge { background: rgba(0, 240, 255, 0.2); color: var(--cyan-primary); }
-.badge.system-badge { background: rgba(255, 255, 255, 0.1); color: var(--text-muted); }
+.badge.user-badge {
+  background: rgba(0, 119, 255, 0.3);
+  color: #93c5fd;
+}
+
+.badge.assistant-badge {
+  background: rgba(0, 240, 255, 0.2);
+  color: var(--cyan-primary);
+}
+
+.badge.system-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
 
 .card-content {
   font-size: 0.92rem;
@@ -1036,8 +1103,15 @@ button, input, select, textarea {
   padding-bottom: 10px;
 }
 
-.col-icon { font-size: 1.1rem; }
-.col-title { font-size: 1rem; font-weight: 600; color: #ffffff; }
+.col-icon {
+  font-size: 1.1rem;
+}
+
+.col-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+}
 
 .items-scroll-list {
   flex: 1;
@@ -1071,8 +1145,17 @@ button, input, select, textarea {
   gap: 2px;
 }
 
-.agenda-item-title { font-size: 0.88rem; font-weight: 500; color: #ffffff; }
-.agenda-item-sub { font-size: 0.74rem; font-family: var(--font-mono); color: var(--text-dim); }
+.agenda-item-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.agenda-item-sub {
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
 
 .agenda-item-actions {
   display: flex;
@@ -1166,7 +1249,8 @@ button, input, select, textarea {
   gap: 20px;
 }
 
-.memory-form-card, .memory-list-card {
+.memory-form-card,
+.memory-list-card {
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-subtle);
@@ -1203,7 +1287,8 @@ button, input, select, textarea {
   color: var(--text-muted);
 }
 
-.form-group input, .form-group select {
+.form-group input,
+.form-group select {
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid var(--border-subtle);
   padding: 9px 12px;
@@ -1212,7 +1297,8 @@ button, input, select, textarea {
   font-size: 0.85rem;
 }
 
-.form-group input:focus, .form-group select:focus {
+.form-group input:focus,
+.form-group select:focus {
   border-color: var(--border-cyan);
 }
 
@@ -1408,8 +1494,16 @@ button, input, select, textarea {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.setting-name { font-size: 0.85rem; color: var(--text-muted); }
-.setting-val { font-size: 0.82rem; font-family: var(--font-mono); color: #ffffff; }
+.setting-name {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.setting-val {
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  color: #ffffff;
+}
 
 /* --------------------------------------------------------------------------
    11. Confirmation Modal Dialog
@@ -1714,14 +1808,15 @@ button, input, select, textarea {
 }
 
 
-   -------------------------------------------------------------------------- */
-@media (max-width: 1100px) {
+-------------------------------------------------------------------------- */ @media (max-width: 1100px) {
   :root {
     --sidebar-width: 220px;
   }
+
   .hologram-stage-box {
     height: clamp(300px, 42vh, 420px);
   }
+
   .memory-layout {
     grid-template-columns: 1fr;
   }
@@ -1733,23 +1828,31 @@ button, input, select, textarea {
     min-width: 72px;
     padding: 16px 8px;
   }
-  .brand-text, .nav-btn-text, .metric-info {
+
+  .brand-text,
+  .nav-btn-text,
+  .metric-info {
     display: none;
   }
+
   .sidebar-brand {
     justify-content: center;
     padding-bottom: 14px;
   }
+
   .nav-btn {
     justify-content: center;
     padding: 12px;
   }
+
   .nav-btn-icon {
     font-size: 1.2rem;
   }
+
   .workspace-header {
     padding: 0 18px;
   }
+
   #panelHome {
     padding: 8px 16px 18px;
   }

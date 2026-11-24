@@ -3,7 +3,9 @@ Coordinates perception, understanding, tool routing, permissions, execution, and
 """
 import uuid
 import re
+import json
 import logging
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
@@ -15,6 +17,8 @@ from app.agent.clarification import ClarificationEngine
 from app.tools.registry import tool_registry
 from app.tools.base import ToolResult
 from app.security.confirmations import confirmation_manager
+from app.database.database import get_db_context
+from app.database.models import SessionRecord
 
 logger = logging.getLogger("DADUS.Agent")
 
@@ -37,9 +41,47 @@ class DadusAgent:
 
     def get_or_create_session(self, session_id: Optional[str] = None) -> AgentSessionState:
         sid = session_id or "default_session"
-        if sid not in self._sessions:
-            self._sessions[sid] = AgentSessionState(session_id=sid)
-        return self._sessions[sid]
+        if sid in self._sessions:
+            return self._sessions[sid]
+
+        # Attempt to restore from persistent SQLite storage
+        try:
+            with get_db_context() as db:
+                rec = db.query(SessionRecord).filter(SessionRecord.session_id == sid).first()
+                if rec and rec.state_json:
+                    state_dict = json.loads(rec.state_json)
+                    session = AgentSessionState(**state_dict)
+                    self._sessions[sid] = session
+                    logger.info(f"Restored persisted session [{sid}] from database.")
+                    return session
+        except Exception as ex:
+            logger.debug(f"Could not load persisted session [{sid}]: {ex}")
+
+        new_sess = AgentSessionState(session_id=sid)
+        self._sessions[sid] = new_sess
+        return new_sess
+
+    def _persist_session(self, session: AgentSessionState) -> None:
+        """Persists session state into SQLite for crash and reboot recovery."""
+        try:
+            with get_db_context() as db:
+                rec = db.query(SessionRecord).filter(SessionRecord.session_id == session.session_id).first()
+                state_data = session.model_dump() if hasattr(session, "model_dump") else session.dict()
+                state_json = json.dumps(state_data)
+                if rec:
+                    rec.state_json = state_json
+                    rec.updated_at = datetime.utcnow()
+                else:
+                    rec = SessionRecord(
+                        session_id=session.session_id,
+                        state_json=state_json,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    db.add(rec)
+                db.flush()
+        except Exception as ex:
+            logger.debug(f"Error persisting session [{session.session_id}]: {ex}")
 
     def _execute_and_observe_tool(
         self,
@@ -118,6 +160,12 @@ class DadusAgent:
         session = self.get_or_create_session(session_id)
         clean_text = user_text.strip()
         session.add_user_message(clean_text)
+        try:
+            return self._process_input_internal(session, clean_text)
+        finally:
+            self._persist_session(session)
+
+    def _process_input_internal(self, session: AgentSessionState, clean_text: str) -> AgentResponse:
         lower_input = clean_text.lower()
 
         logger.info(f"DADUS received [{session.session_id}]: '{clean_text}'")

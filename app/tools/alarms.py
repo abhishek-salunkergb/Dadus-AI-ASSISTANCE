@@ -229,6 +229,13 @@ class SetAlarmTool(BaseTool):
             rec_str = f" repeating {rec}" if rec != "none" else ""
             msg = f"Boss, I've set an alarm for {formatted_time}{rec_str}."
 
+            # Wake alarm daemon immediately so it sleeps precisely until the new alarm
+            try:
+                from app.productivity.alarm_daemon import alarm_daemon
+                alarm_daemon.notify_change()
+            except Exception:
+                pass
+
             logger.info(f"Alarm created: id={alarm_dict.get('id')} time={target_dt} label='{clean_label}'")
             return ToolResult(
                 tool_name=self.name,
@@ -323,6 +330,11 @@ class CancelAlarmTool(BaseTool):
                     for a in scheduled:
                         a.status = "cancelled"
                     db.flush()
+                    try:
+                        from app.productivity.alarm_daemon import alarm_daemon
+                        alarm_daemon.notify_change()
+                    except Exception:
+                        pass
                     return ToolResult(
                         tool_name=self.name,
                         success=True,
@@ -357,6 +369,11 @@ class CancelAlarmTool(BaseTool):
                 target_alarm.status = "cancelled"
                 fmt = format_alarm_time(target_alarm.target_time)
                 db.flush()
+                try:
+                    from app.productivity.alarm_daemon import alarm_daemon
+                    alarm_daemon.notify_change()
+                except Exception:
+                    pass
                 return ToolResult(
                     tool_name=self.name,
                     success=True,
@@ -402,6 +419,12 @@ class ModifyAlarmTool(BaseTool):
                     alarm.label = new_label.strip()
                 db.flush()
                 alarm_data = alarm.to_dict()
+
+            try:
+                from app.productivity.alarm_daemon import alarm_daemon
+                alarm_daemon.notify_change()
+            except Exception:
+                pass
 
             fmt = format_alarm_time(target_dt)
             return ToolResult(

@@ -22,6 +22,39 @@ class ExecutionPlan(BaseModel):
     explanation: str
     steps: List[PlanStep]
 
+def _resolve_template_val(val: Any, context: Dict[str, Any]) -> Any:
+    """Recursively resolves dynamic references like {{step_1.path}}, {{step_1.data.key}}, {{last_step.file_path}}."""
+    if isinstance(val, str):
+        matches = re.findall(r"\{\{([^}]+)\}\}", val)
+        if not matches:
+            return val
+        if len(matches) == 1 and val.strip() == f"{{{{{matches[0]}}}}}":
+            expr = matches[0].strip()
+            resolved = _lookup_in_context(expr, context)
+            return resolved if resolved is not None else val
+        res_str = val
+        for expr in matches:
+            resolved = _lookup_in_context(expr.strip(), context)
+            res_str = res_str.replace(f"{{{{{expr}}}}}", str(resolved if resolved is not None else ""))
+        return res_str
+    elif isinstance(val, dict):
+        return {k: _resolve_template_val(v, context) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_resolve_template_val(v, context) for v in val]
+    return val
+
+def _lookup_in_context(expr: str, context: Dict[str, Any]) -> Any:
+    parts = expr.split(".")
+    curr = context
+    for part in parts:
+        if isinstance(curr, dict) and part in curr:
+            curr = curr[part]
+        elif hasattr(curr, part):
+            curr = getattr(curr, part)
+        else:
+            return None
+    return curr
+
 def _extract_project_target(text: str) -> Optional[str]:
     """Dynamically extracts a target project name from compound natural language phrasing."""
     match = re.search(r"(?:find|open|locate)\s+(?:my\s+)?([a-zA-Z0-9_\-]+?)(?:\s+project)?(?:\s+and|\s+in|\sto|,|$)", text, re.IGNORECASE)
@@ -94,7 +127,7 @@ class TaskPlanner:
             return ExecutionPlan(goal=text, explanation=explanation, steps=steps)
 
         # 2. Multi-step workflow: Locate project folder, open in editor, and launch git origin in browser
-        if "github" in lower and any(w in lower for w in ["open in vs code", "open it in vs code", "open in code", "editor"]):
+        if "github" in lower and any(w in lower for w in ["open in", "open it in", "code", "editor", "vscode", "vs code", "cursor", "pycharm"]):
             target_proj = proj or "current project"
             steps = [
                 PlanStep(
@@ -118,7 +151,7 @@ class TaskPlanner:
             return ExecutionPlan(goal=text, explanation=explanation, steps=steps)
 
         # 3. Single compound action: Project search + editor launch
-        if any(w in lower for w in ["find my", "open my"]) and any(w in lower for w in ["in vs code", "in code editor"]):
+        if any(w in lower for w in ["find my", "open my"]) and any(w in lower for w in ["in vs code", "in code editor", "in editor", "in cursor", "in pycharm"]):
             target_proj = proj or "project"
             steps = [
                 PlanStep(
@@ -160,10 +193,11 @@ class TaskPlanner:
 
     @classmethod
     def execute_plan(cls, plan: ExecutionPlan, user_input: str) -> Tuple[bool, str, List[Dict[str, Any]]]:
-        """Execute each step in the plan sequentially with verification."""
+        """Execute each step in the plan sequentially with DAG data-piping and verification."""
         results = []
         messages = []
         all_success = True
+        pipeline_context: Dict[str, Any] = {}
 
         for step in plan.steps:
             from app.security.lock_screen import check_lock_screen_restriction
@@ -174,13 +208,39 @@ class TaskPlanner:
                 results.append({"step": step.step_number, "tool": step.tool_name, "error": "lock_screen_restriction"})
                 break
 
-            logger.info(f"Executing Plan Step {step.step_number}: {step.tool_name} ({step.description})")
+            # 1. Resolve dynamic argument references (e.g. {{step_1.data.path}} or {{last_step.data.file_path}})
+            resolved_args = _resolve_template_val(dict(step.arguments), pipeline_context)
+
+            # 2. Dynamic Auto-piping: If a target parameter is missing but a preceding step produced a path/entity, pipe it forward
+            if "last_step" in pipeline_context and isinstance(pipeline_context["last_step"], dict):
+                last_data = pipeline_context["last_step"].get("data")
+                if isinstance(last_data, dict):
+                    piped_path = last_data.get("file_path") or last_data.get("path") or last_data.get("screenshot_path")
+                    if piped_path:
+                        if "path" in resolved_args and (not resolved_args["path"] or resolved_args["path"] == "file"):
+                            resolved_args["path"] = piped_path
+                        elif "file_path" in resolved_args and not resolved_args["file_path"]:
+                            resolved_args["file_path"] = piped_path
+
+                    piped_contact = last_data.get("contact")
+                    if isinstance(piped_contact, dict):
+                        piped_email = piped_contact.get("email")
+                        if piped_email and "recipient" in resolved_args and not resolved_args["recipient"]:
+                            resolved_args["recipient"] = piped_email
+
+            logger.info(f"Executing Plan Step {step.step_number}: {step.tool_name} with resolved args={resolved_args}")
             res = tool_registry.execute_tool(
                 name=step.tool_name,
-                arguments=step.arguments,
+                arguments=resolved_args,
                 user_input=user_input
             )
-            results.append({"step": step.step_number, "tool": step.tool_name, "result": res.to_dict()})
+            step_record = {"step": step.step_number, "tool": step.tool_name, "result": res.to_dict()}
+            results.append(step_record)
+
+            # Store in pipeline execution context for dependent future steps
+            step_key = f"step_{step.step_number}"
+            pipeline_context[step_key] = res.to_dict()
+            pipeline_context["last_step"] = res.to_dict()
 
             if not res.success:
                 all_success = False

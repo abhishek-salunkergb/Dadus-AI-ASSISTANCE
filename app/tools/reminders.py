@@ -99,6 +99,12 @@ class CreateReminderTool(BaseTool):
                 db.add(reminder)
                 db.flush()
 
+            try:
+                from app.productivity.reminder_daemon import reminder_daemon
+                reminder_daemon.notify_change()
+            except Exception:
+                pass
+
             time_formatted = target_dt.strftime("%I:%M %p")
             if rec == "daily":
                 msg = f"I've set a daily reminder to '{title}' every day at {time_formatted}, boss."

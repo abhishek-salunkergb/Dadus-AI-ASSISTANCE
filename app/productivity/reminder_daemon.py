@@ -19,34 +19,49 @@ class ReminderDaemon:
     def __init__(self, check_interval_seconds: int = 10):
         self.check_interval = check_interval_seconds
         self._running = False
+        self._wake_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
+
+    def notify_change(self) -> None:
+        """Wake daemon immediately when reminders are created or updated."""
+        self._wake_event.set()
 
     def start(self) -> None:
         """Start the background daemon thread."""
         if self._running:
             return
         self._running = True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._wake_event.clear()
+        self._thread = threading.Thread(target=self._run_loop, daemon=True, name="DADUS-ReminderDaemon")
         self._thread.start()
-        logger.info("Background Reminder Daemon started.")
+        logger.info("Background Reminder Daemon started (event-driven).")
 
     def stop(self) -> None:
         """Stop daemon thread."""
         self._running = False
+        self._wake_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         logger.info("Background Reminder Daemon stopped.")
 
     def _run_loop(self) -> None:
         # Check missed reminders once on startup
-        self._check_missed_reminders()
+        try:
+            self._check_missed_reminders()
+        except Exception as ex:
+            logger.error(f"Error checking missed reminders: {ex}")
 
         while self._running:
             try:
-                self._check_due_reminders()
+                next_due_secs = self._check_due_reminders()
             except Exception as ex:
                 logger.error(f"Error in reminder loop: {ex}")
-            time.sleep(self.check_interval)
+                next_due_secs = self.check_interval
+
+            wait_time = min(next_due_secs, 60.0) if next_due_secs is not None else 60.0
+            wait_time = max(0.5, wait_time)
+            self._wake_event.wait(timeout=wait_time)
+            self._wake_event.clear()
 
     def _check_missed_reminders(self) -> None:
         """Find reminders that matured while the system/app was shut down."""
@@ -76,7 +91,7 @@ class ReminderDaemon:
                     r.last_notified_at = datetime.utcnow()
             db.flush()
 
-    def _check_due_reminders(self) -> None:
+    def _check_due_reminders(self) -> Optional[float]:
         """Find reminders that are due right now."""
         now = datetime.now()
         with get_db_context() as db:
@@ -101,5 +116,16 @@ class ReminderDaemon:
                     r.status = "completed"
                     r.last_notified_at = datetime.utcnow()
             db.flush()
+
+            # Calculate seconds to next pending reminder
+            next_rem = db.query(Reminder).filter(
+                Reminder.status == "pending",
+                Reminder.target_time > now
+            ).order_by(Reminder.target_time.asc()).first()
+
+            if next_rem:
+                diff = (next_rem.target_time - datetime.now()).total_seconds()
+                return max(0.0, diff)
+            return None
 
 reminder_daemon = ReminderDaemon()
