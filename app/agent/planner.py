@@ -88,8 +88,16 @@ class TaskPlanner:
         lower = text.lower()
         if any(p in lower for p in ["explain what you are doing", "explain before executing", "explain your plan"]):
             return True
-        # Check for clause conjunctions indicating sequential instructions
-        return bool(re.search(r"\b(?:and\s+then|then|and\s+also|and)\b", lower))
+        if re.search(r"\b(?:and\s+then|then|and\s+also|after\s+that)\b", lower):
+            return True
+        # Only treat 'and' as multi-step if both sides look like distinct action clauses
+        if re.search(r"\band\b", lower):
+            clauses = [c.strip() for c in re.split(r"\band\b", lower) if c.strip()]
+            if len(clauses) >= 2:
+                action_verbs = r"^(?:please\s+|can\s+you\s+)?(?:open|launch|start|close|quit|play|pause|set|create|add|find|search|check|read|send|delete|take|wrap|resume|mute|unmute|lock|turn|remember|list|show)\b"
+                action_clauses = sum(1 for c in clauses if re.search(action_verbs, c))
+                return action_clauses >= 2
+        return False
 
     @classmethod
     def create_plan(cls, text: str) -> Optional[ExecutionPlan]:

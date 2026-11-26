@@ -314,7 +314,7 @@ def list_schedule(db: Session = Depends(get_db)):
 @app.get("/api/memory")
 def list_memories(db: Session = Depends(get_db)):
     """Retrieve all stored user memories and preferences."""
-    memories = db.query(MemoryItem).order_by(MemoryItem.updated_at.desc()).all()
+    memories = db.query(MemoryItem).filter(MemoryItem.category != "system_config").order_by(MemoryItem.updated_at.desc()).all()
     return {"memories": [m.to_dict() for m in memories]}
 
 @app.post("/api/memory")
@@ -601,6 +601,39 @@ def get_autostart_status():
     """Check if DADUS is configured to launch on Windows login."""
     from app.system.autostart import autostart_manager
     return {"enabled": autostart_manager.is_autostart_enabled()}
+
+
+@app.get("/api/settings/llm")
+def get_llm_settings():
+    """Retrieve current LLM provider configuration, presets, and local Ollama status."""
+    from app.agent.llm_provider import llm_manager
+    return {"success": True, **llm_manager.get_config(include_secret=False)}
+
+
+@app.post("/api/settings/llm")
+def update_llm_settings(payload: Dict[str, Any]):
+    """Update and persist LLM provider / BYOK API key configuration."""
+    from app.agent.llm_provider import llm_manager
+    cfg = llm_manager.save_config(
+        provider=payload.get("provider", "auto"),
+        api_key=payload.get("api_key"),
+        base_url=payload.get("base_url"),
+        model=payload.get("model"),
+        temperature=float(payload.get("temperature", 0.2))
+    )
+    return {"success": True, **cfg}
+
+
+@app.post("/api/settings/llm/test")
+def test_llm_settings(payload: Dict[str, Any]):
+    """Test connectivity for the provided LLM provider and credentials."""
+    from app.agent.llm_provider import llm_manager
+    return llm_manager.test_connection(
+        provider=payload.get("provider", "auto"),
+        api_key=payload.get("api_key"),
+        base_url=payload.get("base_url"),
+        model=payload.get("model")
+    )
 
 @app.post("/api/system/autostart")
 def set_autostart_status(payload: Dict[str, bool]):

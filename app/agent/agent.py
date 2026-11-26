@@ -278,6 +278,13 @@ class DadusAgent:
                 status="DONE"
             )
 
+        if planned_call and planned_call.direct_response and not planned_call.tool_name:
+            session.add_assistant_message(planned_call.direct_response)
+            return AgentResponse(
+                text=planned_call.direct_response,
+                status="DONE"
+            )
+
         if not planned_call or not planned_call.tool_name:
             msg = "I'm not quite sure how to handle that, boss."
             session.add_assistant_message(msg)

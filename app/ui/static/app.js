@@ -646,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (panelId === 'activity') loadAuditLogs();
     if (panelId === 'tools') loadToolsMatrix();
     if (panelId === 'devices') loadDevicesData();
+    if (panelId === 'settings') loadLlmSettings();
     if (panelId === 'home' && dadusOrb) {
       setTimeout(() => dadusOrb._handleResize(), 50);
     }
@@ -1319,6 +1320,142 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) {
         btnRestoreSnapshot.textContent = 'Error ✕';
         setTimeout(() => { btnRestoreSnapshot.textContent = '⚡ Restore Snapshot'; }, 2000);
+      }
+    });
+  }
+
+  // ==========================================================================
+  // 15. AI Brain & Multi-Provider LLM Configuration
+  // ==========================================================================
+  let llmPresets = {};
+
+  function updateLlmFormVisibility(provider) {
+    const preset = llmPresets[provider] || {};
+    const apiKeyGroup = document.getElementById('llmApiKeyGroup');
+    const baseUrlGroup = document.getElementById('llmBaseUrlGroup');
+    const getKeyLink = document.getElementById('llmGetKeyLink');
+    const hintEl = document.getElementById('llmProviderHint');
+
+    if (apiKeyGroup) {
+      apiKeyGroup.style.display = (provider === 'auto' || provider === 'ollama') ? 'none' : 'block';
+    }
+    if (baseUrlGroup) {
+      baseUrlGroup.style.display = (provider === 'custom') ? 'block' : 'none';
+    }
+    if (getKeyLink) {
+      if (preset.signup_url && preset.requires_key) {
+        getKeyLink.href = preset.signup_url;
+        getKeyLink.style.display = 'inline';
+      } else {
+        getKeyLink.style.display = 'none';
+      }
+    }
+    if (hintEl && preset.description) {
+      hintEl.textContent = preset.description;
+    }
+  }
+
+  async function loadLlmSettings() {
+    try {
+      const res = await fetch('/api/settings/llm');
+      if (!res.ok) return;
+      const data = await res.json();
+      llmPresets = data.presets || {};
+
+      const providerSel = document.getElementById('llmProviderSelect');
+      const modelInput = document.getElementById('llmModelInput');
+      const keyInput = document.getElementById('llmApiKeyInput');
+      const urlInput = document.getElementById('llmBaseUrlInput');
+      const statusPill = document.getElementById('llmStatusPill');
+
+      if (providerSel) providerSel.value = data.provider || 'auto';
+      if (modelInput) modelInput.value = data.model || '';
+      if (keyInput) keyInput.value = data.api_key || '';
+      if (urlInput) urlInput.value = data.base_url || '';
+
+      updateLlmFormVisibility(data.provider || 'auto');
+
+      if (statusPill) {
+        if (data.has_api_key) {
+          statusPill.textContent = `CLOUD AI ACTIVE (${data.provider.toUpperCase()})`;
+          statusPill.style.color = '#10b981';
+        } else if (data.ollama_detected) {
+          statusPill.textContent = `LOCAL OLLAMA (${data.ollama_models?.[0] || 'Ready'})`;
+          statusPill.style.color = '#38bdf8';
+        } else {
+          statusPill.textContent = 'BUILT-IN ENGINE (OFFLINE)';
+          statusPill.style.color = '#a5b4fc';
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load LLM settings:', e);
+    }
+  }
+
+  const llmProviderSelect = document.getElementById('llmProviderSelect');
+  if (llmProviderSelect) {
+    llmProviderSelect.addEventListener('change', (e) => {
+      const prov = e.target.value;
+      const preset = llmPresets[prov] || {};
+      const modelInput = document.getElementById('llmModelInput');
+      const urlInput = document.getElementById('llmBaseUrlInput');
+      if (modelInput && preset.default_model) modelInput.value = preset.default_model;
+      if (urlInput && preset.base_url) urlInput.value = preset.base_url;
+      updateLlmFormVisibility(prov);
+    });
+  }
+
+  const btnTestLlm = document.getElementById('btnTestLlm');
+  if (btnTestLlm) {
+    btnTestLlm.addEventListener('click', async () => {
+      const statusEl = document.getElementById('llmActionStatus');
+      if (statusEl) { statusEl.textContent = 'Testing connection...'; statusEl.style.color = '#94a3b8'; }
+      try {
+        const res = await fetch('/api/settings/llm/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: document.getElementById('llmProviderSelect')?.value || 'auto',
+            api_key: document.getElementById('llmApiKeyInput')?.value || null,
+            base_url: document.getElementById('llmBaseUrlInput')?.value || null,
+            model: document.getElementById('llmModelInput')?.value || null
+          })
+        });
+        const data = await res.json();
+        if (statusEl) {
+          statusEl.textContent = data.message || (data.success ? 'Connected!' : 'Failed.');
+          statusEl.style.color = data.success ? '#10b981' : '#f87171';
+        }
+      } catch (err) {
+        if (statusEl) { statusEl.textContent = 'Test request failed.'; statusEl.style.color = '#f87171'; }
+      }
+    });
+  }
+
+  const btnSaveLlm = document.getElementById('btnSaveLlm');
+  if (btnSaveLlm) {
+    btnSaveLlm.addEventListener('click', async () => {
+      const statusEl = document.getElementById('llmActionStatus');
+      if (statusEl) { statusEl.textContent = 'Saving configuration...'; statusEl.style.color = '#94a3b8'; }
+      try {
+        const res = await fetch('/api/settings/llm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: document.getElementById('llmProviderSelect')?.value || 'auto',
+            api_key: document.getElementById('llmApiKeyInput')?.value || null,
+            base_url: document.getElementById('llmBaseUrlInput')?.value || null,
+            model: document.getElementById('llmModelInput')?.value || null
+          })
+        });
+        if (res.ok) {
+          if (statusEl) { statusEl.textContent = 'Saved and activated!'; statusEl.style.color = '#10b981'; }
+          loadLlmSettings();
+        } else {
+          if (statusEl) { statusEl.textContent = 'Could not save settings.'; statusEl.style.color = '#f87171'; }
+        }
+      } catch (err) {
+        if (statusEl) { statusEl.textContent = 'Save request failed.'; statusEl.style.color = '#f87171'; }
       }
     });
   }

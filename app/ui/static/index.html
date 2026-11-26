@@ -541,6 +541,66 @@
             </div>
 
             <div class="settings-grid">
+              <!-- AI Brain & Multi-Provider LLM Configuration -->
+              <div class="settings-card" id="llmConfigCard" style="grid-column: 1 / -1; border-color: rgba(0, 240, 255, 0.25);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                  <div>
+                    <h3 class="settings-card-title" style="margin-bottom: 2px;">🧠 AI Brain & Language Understanding (LLM)</h3>
+                    <div style="font-size: 0.78rem; color: #94a3b8;">Works out-of-the-box with zero setup, or connect a free/custom AI model for deeper natural reasoning.</div>
+                  </div>
+                  <span id="llmStatusPill" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">
+                    Checking Engine...
+                  </span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 12px;">
+                  <div>
+                    <label for="llmProviderSelect" style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">AI Provider</label>
+                    <select id="llmProviderSelect" style="width: 100%; padding: 8px 12px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; color: #f8fafc; font-size: 0.85rem;">
+                      <option value="auto">Smart Auto (No Key Needed — Local + Built-in)</option>
+                      <option value="gemini">Google Gemini (Free Tier — Recommended)</option>
+                      <option value="groq">Groq Cloud (Ultra-Fast Free Tier)</option>
+                      <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+                      <option value="openrouter">OpenRouter (All Models)</option>
+                      <option value="ollama">Ollama (100% Local & Offline)</option>
+                      <option value="custom">Custom OpenAI-Compatible URL</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label for="llmModelInput" style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">Model Name</label>
+                    <input type="text" id="llmModelInput" placeholder="e.g. gemini-2.5-flash" style="width: 100%; padding: 8px 12px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; color: #f8fafc; font-size: 0.85rem; cursor: text;">
+                  </div>
+
+                  <div id="llmApiKeyGroup">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                      <label for="llmApiKeyInput" style="font-size: 0.75rem; color: #94a3b8;">Your API Key (Stored Locally Only)</label>
+                      <a id="llmGetKeyLink" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="font-size: 0.73rem; color: #38bdf8; text-decoration: none; font-weight: 500;">Get Free Key ↗</a>
+                    </div>
+                    <input type="password" id="llmApiKeyInput" placeholder="Paste your API key here..." style="width: 100%; padding: 8px 12px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; color: #f8fafc; font-size: 0.85rem; cursor: text;">
+                  </div>
+
+                  <div id="llmBaseUrlGroup" style="display: none;">
+                    <label for="llmBaseUrlInput" style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">Endpoint Base URL</label>
+                    <input type="text" id="llmBaseUrlInput" placeholder="https://api.openai.com/v1" style="width: 100%; padding: 8px 12px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; color: #f8fafc; font-size: 0.85rem; cursor: text;">
+                  </div>
+                </div>
+
+                <div id="llmProviderHint" style="font-size: 0.78rem; color: #cbd5e1; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.18); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.45;">
+                  Zero API key required. DADUS automatically uses local Ollama if running on your PC, or its fast built-in engine.
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                  <button id="btnTestLlm" class="action-btn" style="padding: 7px 14px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; color: #60a5fa; font-size: 0.82rem; font-weight: 500;">
+                    🔌 Test Connection
+                  </button>
+                  <button id="btnSaveLlm" class="action-btn" style="padding: 7px 16px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 8px; color: #34d399; font-size: 0.82rem; font-weight: 600;">
+                    💾 Save AI Brain
+                  </button>
+                  <span id="llmActionStatus" style="font-size: 0.8rem; color: #94a3b8;"></span>
+                </div>
+              </div>
+
               <div class="settings-card">
                 <h3 class="settings-card-title">Holographic 3D Engine</h3>
                 <div class="setting-item">

@@ -8,7 +8,7 @@ class MemoryRetriever:
     @staticmethod
     def get_context_summary() -> str:
         """Format stored memories into a concise text block for LLM system prompts."""
-        memories = memory_store.list_all()
+        memories = [m for m in memory_store.list_all() if m.get("category") != "system_config" and not str(m.get("key", "")).startswith("__")]
         if not memories:
             return "No persistent memories saved yet."
 
@@ -21,7 +21,7 @@ class MemoryRetriever:
     def search_relevant_memories(query: str) -> List[str]:
         """Simple keyword retrieval across stored keys and values."""
         query_words = set(query.lower().split())
-        memories = memory_store.list_all()
+        memories = [m for m in memory_store.list_all() if m.get("category") != "system_config" and not str(m.get("key", "")).startswith("__")]
         relevant: List[str] = []
 
         for m in memories:

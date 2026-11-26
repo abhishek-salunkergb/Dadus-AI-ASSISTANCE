@@ -9,6 +9,7 @@ from app.config.settings import settings
 from app.tools.registry import tool_registry
 from app.security.permissions import SecurityInspector
 from app.agent.prompts import get_system_prompt
+from app.agent.llm_provider import llm_manager
 
 logger = logging.getLogger("DADUS.Router")
 
@@ -42,11 +43,13 @@ class IntentRouter:
         if fast_call or fast_reply:
             return fast_call, fast_reply
 
-        # 3. LLM tool-calling if API key is configured
-        if settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() and not settings.OPENAI_API_KEY.startswith("your_"):
+        # 3. LLM tool-calling / reasoning (Cloud BYOK or Local Zero-Key Ollama)
+        if llm_manager.resolve_active_backend() is not None:
             try:
                 llm_call = self._call_llm(clean_text, conversation_history)
                 if llm_call:
+                    if llm_call.direct_response and not llm_call.tool_name:
+                        return None, llm_call.direct_response
                     return llm_call, None
             except Exception as ex:
                 logger.warning(f"LLM tool calling error, falling back to local heuristic parser: {ex}")
@@ -222,44 +225,37 @@ class IntentRouter:
                     cand_clean = memory_store.get_preferred_code_editor() or "Visual Studio Code"
                 elif cand_clean.lower() in ["browser", "web browser"]:
                     cand_clean = memory_store.get_preferred_browser() or "Google Chrome"
+
+                # If an LLM is active, only fast-path verified apps/web services so conversational phrases ("open a discussion...") go to the LLM
+                if llm_manager.resolve_active_backend() is not None:
+                    from app.tools.apps import AppDetector, WEB_APP_URLS
+                    if not (AppDetector.find_app(cand_clean) or cand_clean.lower() in WEB_APP_URLS):
+                        return None, None
+
                 formatted_name = cand_clean.title() if len(cand_clean) > 4 else cand_clean.upper()
                 return PlannedToolCall(tool_name="open_app", arguments={"app_name": formatted_name}), None
 
         return None, None
 
     def _call_llm(self, user_text: str, conversation_history: List[Dict[str, str]]) -> Optional[PlannedToolCall]:
-        """Invoke OpenAI-compatible chat completions with function tools."""
-        from openai import OpenAI
-        client = OpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL,
-            timeout=settings.LLM_TIMEOUT_SECONDS
-        )
-
+        """Invoke configured LLM backend (Cloud BYOK or Local Ollama) with normalized function tools."""
         messages = [{"role": "system", "content": get_system_prompt()}]
-        for msg in conversation_history[-6:]:
+        for msg in conversation_history[-8:]:
             messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": user_text})
 
         tools = tool_registry.get_openai_tools()
-
-        response = client.chat.completions.create(
-            model=settings.LLM_MODEL,
-            messages=messages,
-            tools=tools if tools else None,
-            tool_choice="auto" if tools else None,
-            temperature=settings.LLM_TEMPERATURE
-        )
+        response = llm_manager.chat_completion(messages=messages, tools=tools if tools else None)
 
         choice = response.choices[0].message
-        if choice.tool_calls:
+        if getattr(choice, "tool_calls", None):
             tcall = choice.tool_calls[0]
             tname = tcall.function.name
             targs = json.loads(tcall.function.arguments) if tcall.function.arguments else {}
             return PlannedToolCall(tool_name=tname, arguments=targs)
 
-        if choice.content:
-            return PlannedToolCall(tool_name="", arguments={}, direct_response=choice.content)
+        if getattr(choice, "content", None):
+            return PlannedToolCall(tool_name="", arguments={}, direct_response=choice.content.strip())
 
         return None
 
