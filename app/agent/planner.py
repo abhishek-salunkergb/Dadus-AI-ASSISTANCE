@@ -3,11 +3,13 @@ Decomposes compound goals into validated tool execution pipelines.
 """
 from typing import List, Dict, Any, Optional, Tuple
 import re
+import json
 import logging
 from pydantic import BaseModel, Field
 
 from app.tools.registry import tool_registry
 from app.tools.base import ToolResult
+from app.agent.llm_provider import llm_manager
 
 logger = logging.getLogger("DADUS.Planner")
 
@@ -172,8 +174,14 @@ class TaskPlanner:
             explanation = f"Boss, I will locate your '{target_proj}' directory and open it directly in {editor}."
             return ExecutionPlan(goal=text, explanation=explanation, steps=steps)
 
-        # 4. Generalized Sequential Intent Pipeline
-        clauses = [c.strip() for c in re.split(r"\b(?:and\s+then|then|and\s+also|and)\b", text, flags=re.IGNORECASE) if c.strip()]
+        # 4. LLM-Backed Multi-Step DAG Decomposition (when an LLM backend is active)
+        if llm_manager.resolve_active_backend() is not None:
+            llm_plan = cls._create_plan_with_llm(text)
+            if llm_plan:
+                return llm_plan
+
+        # 5. Generalized Sequential Intent Pipeline (offline deterministic fallback)
+        clauses = [c.strip() for c in re.split(r"\b(?:and\s+then|then|and\s+also|after\s+that|and)\b", text, flags=re.IGNORECASE) if c.strip()]
         if len(clauses) > 1:
             from app.agent.router import intent_router
             discovered_steps: List[PlanStep] = []
@@ -197,6 +205,58 @@ class TaskPlanner:
                 )
                 return ExecutionPlan(goal=text, explanation=explanation, steps=discovered_steps)
 
+        return None
+
+    @classmethod
+    def _create_plan_with_llm(cls, text: str) -> Optional[ExecutionPlan]:
+        """Uses the active LLM backend to decompose arbitrary compound goals into a validated DAG plan."""
+        try:
+            catalog_lines = []
+            for t in tool_registry.list_tools():
+                schema = t.args_schema.model_json_schema()
+                props = list(schema.get("properties", {}).keys())
+                catalog_lines.append(f"- {t.name}({', '.join(props)}): {t.description}")
+
+            system_prompt = (
+                "You are DADUS's Multi-Step Task Planner. Decompose the user's compound goal into a sequential JSON execution plan.\n"
+                "You may reference outputs from earlier steps using {{step_1.data.path}} or {{last_step.data.file_path}}.\n"
+                "Available tools:\n" + "\n".join(catalog_lines) + "\n\n"
+                "Respond ONLY with valid JSON matching:\n"
+                '{"explanation": "Boss, here is my plan: ...", "steps": [{"step_number": 1, "tool_name": "...", "arguments": {...}, "description": "..."}]}'
+            )
+
+            resp = llm_manager.chat_completion(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text}
+                ],
+                tools=None
+            )
+            raw = (resp.choices[0].message.content or "").strip()
+            # Strip optional markdown code fences
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"\s*```$", "", raw).strip()
+
+            data = json.loads(raw)
+            raw_steps = data.get("steps", [])
+            valid_steps: List[PlanStep] = []
+            for idx, s in enumerate(raw_steps, 1):
+                tname = s.get("tool_name")
+                if not tname or not tool_registry.get_tool(tname):
+                    logger.warning(f"LLM planner proposed unknown tool '{tname}', rejecting plan.")
+                    return None
+                valid_steps.append(PlanStep(
+                    step_number=idx,
+                    tool_name=tname,
+                    arguments=s.get("arguments") or {},
+                    description=s.get("description") or tname.replace("_", " ").title()
+                ))
+
+            if len(valid_steps) >= 2:
+                explanation = data.get("explanation") or "Boss, executing your multi-step plan:"
+                return ExecutionPlan(goal=text, explanation=explanation, steps=valid_steps)
+        except Exception as ex:
+            logger.warning(f"LLM planning failed, falling back to deterministic planner: {ex}")
         return None
 
     @classmethod

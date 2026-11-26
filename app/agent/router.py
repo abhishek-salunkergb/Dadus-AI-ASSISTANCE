@@ -17,10 +17,21 @@ WAKE_PREFIXES = ["hey dadus", "dadus", "ok dadus", "hi dadus"]
 
 
 class PlannedToolCall:
-    def __init__(self, tool_name: str, arguments: Dict[str, Any], direct_response: Optional[str] = None):
+    def __init__(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        direct_response: Optional[str] = None,
+        routed_by_llm: bool = False,
+        llm_tool_call_id: Optional[str] = None,
+        raw_assistant_message: Optional[Dict[str, Any]] = None
+    ):
         self.tool_name = tool_name
         self.arguments = arguments
         self.direct_response = direct_response
+        self.routed_by_llm = routed_by_llm
+        self.llm_tool_call_id = llm_tool_call_id
+        self.raw_assistant_message = raw_assistant_message
 
 
 class IntentRouter:
@@ -250,12 +261,29 @@ class IntentRouter:
         choice = response.choices[0].message
         if getattr(choice, "tool_calls", None):
             tcall = choice.tool_calls[0]
+            tcall_id = getattr(tcall, "id", None) or "call_1"
             tname = tcall.function.name
-            targs = json.loads(tcall.function.arguments) if tcall.function.arguments else {}
-            return PlannedToolCall(tool_name=tname, arguments=targs)
+            raw_args = tcall.function.arguments or "{}"
+            targs = json.loads(raw_args)
+            assistant_msg = {
+                "role": "assistant",
+                "content": choice.content or "",
+                "tool_calls": [{
+                    "id": tcall_id,
+                    "type": "function",
+                    "function": {"name": tname, "arguments": raw_args}
+                }]
+            }
+            return PlannedToolCall(
+                tool_name=tname,
+                arguments=targs,
+                routed_by_llm=True,
+                llm_tool_call_id=tcall_id,
+                raw_assistant_message=assistant_msg
+            )
 
         if getattr(choice, "content", None):
-            return PlannedToolCall(tool_name="", arguments={}, direct_response=choice.content.strip())
+            return PlannedToolCall(tool_name="", arguments={}, direct_response=choice.content.strip(), routed_by_llm=True)
 
         return None
 

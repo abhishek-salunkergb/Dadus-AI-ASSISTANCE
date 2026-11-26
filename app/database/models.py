@@ -234,3 +234,15 @@ class WorkstationSnapshot(Base):
         }
 
 
+class SystemSetting(Base):
+    """Dedicated system configuration table (isolated from user memories)."""
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    key = Column(String(128), unique=True, index=True, nullable=False)
+    value_json = Column(Text, nullable=False)
+    is_encrypted = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+

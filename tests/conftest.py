@@ -13,7 +13,7 @@ from app.config.settings import settings
 from app.database.database import init_db, get_db_context
 from app.database.models import (
     Base, Reminder, ScheduleItem, MemoryItem, AuditLog, TaskItem, Alarm, Contact,
-    SessionRecord, PairedDevice, WorkstationSnapshot
+    SessionRecord, PairedDevice, WorkstationSnapshot, SystemSetting
 )
 from app.tools import register_default_tools
 from app.voice.tts import MockTTS
@@ -42,6 +42,7 @@ def clean_database():
         db.query(SessionRecord).delete()
         db.query(PairedDevice).delete()
         db.query(WorkstationSnapshot).delete()
+        db.query(SystemSetting).delete()
 
 @pytest.fixture(autouse=True)
 def mock_external_side_effects(monkeypatch):

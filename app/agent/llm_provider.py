@@ -13,11 +13,12 @@ from pydantic import BaseModel
 
 from app.config.settings import settings
 from app.database.database import get_db_context
-from app.database.models import MemoryItem
+from app.database.models import SystemSetting
+from app.security.crypto import encrypt_secret, decrypt_secret
 
 logger = logging.getLogger("DADUS.LLMProvider")
 
-LLM_CONFIG_MEMORY_KEY = "__dadus_llm_config__"
+LLM_CONFIG_SETTING_KEY = "llm_config"
 
 PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
     "auto": {
@@ -149,9 +150,12 @@ class LLMManager:
     def _load_db_config(self) -> Optional[Dict[str, Any]]:
         try:
             with get_db_context() as db:
-                rec = db.query(MemoryItem).filter(MemoryItem.key == LLM_CONFIG_MEMORY_KEY).first()
-                if rec and rec.value:
-                    return json.loads(rec.value)
+                rec = db.query(SystemSetting).filter(SystemSetting.key == LLM_CONFIG_SETTING_KEY).first()
+                if rec and rec.value_json:
+                    data = json.loads(rec.value_json)
+                    if data.get("api_key"):
+                        data["api_key"] = decrypt_secret(data["api_key"])
+                    return data
         except Exception as ex:
             logger.debug(f"Could not load persisted LLM config: {ex}")
         return None
@@ -220,24 +224,25 @@ class LLMManager:
         resolved_url = (base_url or preset["base_url"]).strip()
         resolved_model = (model or preset["default_model"]).strip()
 
+        encrypted_key = encrypt_secret(resolved_key) if resolved_key else None
         payload = {
             "provider": provider,
-            "api_key": resolved_key,
+            "api_key": encrypted_key,
             "base_url": resolved_url,
             "model": resolved_model,
             "temperature": temperature,
         }
 
         with get_db_context() as db:
-            rec = db.query(MemoryItem).filter(MemoryItem.key == LLM_CONFIG_MEMORY_KEY).first()
+            rec = db.query(SystemSetting).filter(SystemSetting.key == LLM_CONFIG_SETTING_KEY).first()
             if rec:
-                rec.value = json.dumps(payload)
-                rec.category = "system_config"
+                rec.value_json = json.dumps(payload)
+                rec.is_encrypted = bool(encrypted_key)
             else:
-                db.add(MemoryItem(
-                    key=LLM_CONFIG_MEMORY_KEY,
-                    value=json.dumps(payload),
-                    category="system_config"
+                db.add(SystemSetting(
+                    key=LLM_CONFIG_SETTING_KEY,
+                    value_json=json.dumps(payload),
+                    is_encrypted=bool(encrypted_key)
                 ))
 
         # Sync live settings in-memory

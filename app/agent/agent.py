@@ -14,6 +14,8 @@ from app.agent.router import intent_router, PlannedToolCall
 from app.agent.planner import task_planner
 from app.agent.context import ContextResolver
 from app.agent.clarification import ClarificationEngine
+from app.agent.prompts import get_system_prompt
+from app.agent.llm_provider import llm_manager
 from app.tools.registry import tool_registry
 from app.tools.base import ToolResult
 from app.security.confirmations import confirmation_manager
@@ -290,12 +292,172 @@ class DadusAgent:
             session.add_assistant_message(msg)
             return AgentResponse(text=msg, status="READY")
 
-        # Step 7: Tool Execution & Observation
+        # Step 7: Tool Execution & Observation (ReAct loop for LLM-routed queries, direct for fast-path)
+        if planned_call.routed_by_llm and llm_manager.resolve_active_backend() is not None:
+            return self._execute_react_loop(
+                session=session,
+                initial_call=planned_call,
+                user_input=clean_text,
+                conversation_history=history
+            )
+
         return self._execute_and_observe_tool(
             session=session,
             tool_name=planned_call.tool_name,
             arguments=planned_call.arguments,
             user_input=clean_text
+        )
+
+    def _execute_react_loop(
+        self,
+        session: AgentSessionState,
+        initial_call: PlannedToolCall,
+        user_input: str,
+        conversation_history: List[Dict[str, str]],
+        max_steps: int = 4
+    ) -> AgentResponse:
+        """
+        Bounded ReAct (Reason -> Act -> Observe -> Synthesize) execution loop.
+        Executes tool calls with full security/confirmation enforcement and feeds
+        observed tool results back to the LLM for multi-step reasoning or synthesis.
+        """
+        messages: List[Dict[str, Any]] = [{"role": "system", "content": get_system_prompt()}]
+        for msg in conversation_history[-8:]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+        current_call: Optional[PlannedToolCall] = initial_call
+        last_tool_name: Optional[str] = None
+        last_tool_result: Optional[ToolResult] = None
+
+        for step_idx in range(max_steps):
+            if not current_call or not current_call.tool_name:
+                break
+
+            last_tool_name = current_call.tool_name
+            session.status = "EXECUTING"
+            tool_result = tool_registry.execute_tool(
+                name=current_call.tool_name,
+                arguments=current_call.arguments,
+                user_input=user_input
+            )
+            last_tool_result = tool_result
+
+            # Honor interactive gates immediately (clarification / confirmation)
+            if tool_result.needs_clarification:
+                session.status = "WAITING_CLARIFICATION"
+                target_tool = tool_result.follow_up_tool or current_call.tool_name
+                session.pending_clarification = PendingClarification(
+                    tool_name=target_tool,
+                    arguments=dict(current_call.arguments),
+                    clarification_type=tool_result.clarification_type or "app_choice",
+                    options=tool_result.options or []
+                )
+                session.add_assistant_message(tool_result.message)
+                return AgentResponse(
+                    text=tool_result.message,
+                    status="WAITING_CLARIFICATION",
+                    tool_called=current_call.tool_name,
+                    tool_result=tool_result.to_dict(),
+                    needs_clarification=True,
+                    options=tool_result.options
+                )
+
+            if tool_result.confirmation_required:
+                session.status = "WAITING_CONFIRMATION"
+                session.pending_confirmation_id = tool_result.confirmation_id
+                session.add_assistant_message(tool_result.message)
+                return AgentResponse(
+                    text=tool_result.message,
+                    status="WAITING_CONFIRMATION",
+                    tool_called=current_call.tool_name,
+                    tool_result=tool_result.to_dict(),
+                    needs_confirmation=True,
+                    confirmation_id=tool_result.confirmation_id
+                )
+
+            session.record_tool_action(current_call.tool_name, current_call.arguments, tool_result.to_dict())
+
+            # Append assistant tool call + tool observation into ReAct transcript
+            if current_call.raw_assistant_message:
+                messages.append(current_call.raw_assistant_message)
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": current_call.llm_tool_call_id or f"call_{step_idx}",
+                        "type": "function",
+                        "function": {
+                            "name": current_call.tool_name,
+                            "arguments": json.dumps(current_call.arguments)
+                        }
+                    }]
+                })
+
+            observation_payload = {
+                "success": tool_result.success,
+                "message": tool_result.message,
+                "data": tool_result.data
+            }
+            messages.append({
+                "role": "tool",
+                "tool_call_id": current_call.llm_tool_call_id or f"call_{step_idx}",
+                "content": json.dumps(observation_payload, default=str)
+            })
+
+            # Ask LLM to either synthesize final answer from observation or invoke next tool
+            try:
+                tools = tool_registry.get_openai_tools()
+                resp = llm_manager.chat_completion(messages=messages, tools=tools if tools else None)
+                choice = resp.choices[0].message
+                if getattr(choice, "tool_calls", None):
+                    next_tc = choice.tool_calls[0]
+                    next_id = getattr(next_tc, "id", None) or f"call_{step_idx + 1}"
+                    next_name = next_tc.function.name
+                    raw_args = next_tc.function.arguments or "{}"
+                    next_args = json.loads(raw_args)
+                    current_call = PlannedToolCall(
+                        tool_name=next_name,
+                        arguments=next_args,
+                        routed_by_llm=True,
+                        llm_tool_call_id=next_id,
+                        raw_assistant_message={
+                            "role": "assistant",
+                            "content": choice.content or "",
+                            "tool_calls": [{
+                                "id": next_id,
+                                "type": "function",
+                                "function": {"name": next_name, "arguments": raw_args}
+                            }]
+                        }
+                    )
+                    continue
+
+                if getattr(choice, "content", None):
+                    final_text = choice.content.strip()
+                    session.status = "DONE" if tool_result.success else "ERROR"
+                    session.add_assistant_message(final_text)
+                    return AgentResponse(
+                        text=final_text,
+                        status="DONE" if tool_result.success else "ERROR",
+                        tool_called=last_tool_name,
+                        tool_result=last_tool_result.to_dict()
+                    )
+                break
+            except Exception as ex:
+                logger.warning(f"ReAct synthesis step failed, returning direct tool output: {ex}")
+                break
+
+        # Fallback if loop exits without synthesis
+        final_msg = last_tool_result.message if last_tool_result else "Done, boss."
+        status_str = "DONE" if (last_tool_result and last_tool_result.success) else "ERROR"
+        session.status = status_str
+        session.add_assistant_message(final_msg)
+        return AgentResponse(
+            text=final_msg,
+            status=status_str,
+            tool_called=last_tool_name,
+            tool_result=last_tool_result.to_dict() if last_tool_result else None
         )
 
 dadus_agent = DadusAgent()
